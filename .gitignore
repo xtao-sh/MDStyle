@@ -1,0 +1,37 @@
+# Dependencies
+node_modules/
+
+# Build and packaged app outputs
+release/
+dist/
+out/
+build/
+*.dmg
+*.zip
+!package-lock.json
+
+# Local design/reference captures and generated uploads
+.style-reference/
+MD_Library.zip
+
+# Local app/library exports and user data
+md-style-library-*.json
+*.library.json
+*.backup.json
+
+# Logs and temporary files
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.DS_Store
+.npm-cache/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Editor metadata
+.idea/
+.vscode/

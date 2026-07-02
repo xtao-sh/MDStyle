@@ -1,0 +1,41 @@
+{
+  "name": "md-style",
+  "version": "0.1.0",
+  "description": "Markdown 到微信公众号富文本排版工具",
+  "main": "electron/main.js",
+  "private": true,
+  "scripts": {
+    "dev": "python3 -m http.server 4173",
+    "start": "python3 -m http.server 4173",
+    "app": "electron .",
+    "test": "node scripts/smoke-tests.mjs",
+    "test:copy": "electron scripts/verify-copy-export.mjs",
+    "package": "electron-builder --mac dir",
+    "dist": "electron-builder --mac"
+  },
+  "build": {
+    "appId": "com.local.mdstyle",
+    "productName": "MD Style",
+    "files": [
+      "index.html",
+      "electron/**/*",
+      "README.md",
+      "assets/**/*"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "mac": {
+      "category": "public.app-category.productivity",
+      "icon": "assets/app-icon.icns",
+      "target": [
+        "dir"
+      ]
+    }
+  },
+  "devDependencies": {
+    "electron": "^42.5.2",
+    "electron-builder": "^26.0.12",
+    "markdown-it": "^14.2.0"
+  }
+}
