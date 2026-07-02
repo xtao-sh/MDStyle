@@ -60,6 +60,10 @@ npm test
 
 测试会检查前端脚本语法、Electron 主进程/preload 语法、Markdown/URL/颜色清洗、复制导出关键规则、状态迁移和整库导入导出入口。
 
+## License
+
+MIT
+
 ## 已实现
 
 - 左侧 Markdown 可编辑，右侧公众号样式实时预览。

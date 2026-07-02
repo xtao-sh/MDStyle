@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "Markdown 到微信公众号富文本排版工具",
   "main": "electron/main.js",
+  "license": "MIT",
   "private": true,
   "scripts": {
     "dev": "python3 -m http.server 4173",
