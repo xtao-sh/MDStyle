@@ -2,6 +2,10 @@
 
 本地优先的 Markdown 到微信公众号富文本排版工具。
 
+## 截图
+
+![MD Style 应用截图](docs/screenshot.jpg)
+
 ## 运行
 
 ```bash
@@ -32,6 +36,12 @@ npm run package
 
 ```text
 release/mac-arm64/MD Style.app
+```
+
+打包 macOS `.app` 与 `.dmg`：
+
+```bash
+npm run dist
 ```
 
 App 图标资源：

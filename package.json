@@ -30,7 +30,8 @@
       "category": "public.app-category.productivity",
       "icon": "assets/app-icon.icns",
       "target": [
-        "dir"
+        "dir",
+        "dmg"
       ]
     }
   },
