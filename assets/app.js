@@ -473,6 +473,7 @@ function loadSavedState(){
   } catch (error) {
     storageLoadError = error.message || "本地文档库数据无法解析";
     try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
+    storageHadLocalState = false;
     return null;
   }
 }
@@ -562,13 +563,13 @@ function updateSaveState(label, done){
   el.innerHTML = `<span class="save-dot" style="background:${done ? "var(--accent-2)" : "var(--warn)"}"></span>${label} · ${new Date().toLocaleTimeString("zh-CN", { hour:"2-digit", minute:"2-digit" })}`;
 }
 
-function setActiveDoc(id){
+function setActiveDoc(id, shouldPersist=true){
   state.activeDocId = id;
   const doc = activeDoc();
   editor.value = doc.markdown;
   applyStyle(doc.styleId || "default", false);
   renderAll();
-  persist(true);
+  if (shouldPersist) persist(true);
 }
 
 function renderAll(){
@@ -919,12 +920,20 @@ function hideStylePreview(){ if (previewFloat) previewFloat.remove(); previewFlo
 function generateCustomStyle(){
   const base = styleById(activeDoc()?.styleId || "default");
   const name = prompt("新样式名称", `我的${base.name}`);
-  if (!name) return;
-  const primary = normalizeCssColor(prompt("主色（HEX）", base.swatches[0]), base.swatches[0]);
-  const accent = normalizeCssColor(prompt("强调色（HEX）", base.swatches[1]), base.swatches[1]);
-  const soft = normalizeCssColor(prompt("浅背景色（HEX）", base.swatches[2]), base.swatches[2]);
+  const cleanName = name?.trim().slice(0, 40);
+  if (!cleanName) return;
+  const promptColor = (label, fallback) => {
+    const value = prompt(label, fallback);
+    return value === null ? null : normalizeCssColor(value, fallback);
+  };
+  const primary = promptColor("主色（HEX）", base.swatches[0]);
+  if (primary === null) return;
+  const accent = promptColor("强调色（HEX）", base.swatches[1]);
+  if (accent === null) return;
+  const soft = promptColor("浅背景色（HEX）", base.swatches[2]);
+  if (soft === null) return;
   const style = {
-    id:uid(), cls:"theme-custom", name:name.trim().slice(0, 40), cat:"我的", uc:"用户生成样式", swatches:[primary, accent, soft, "#1A1A18"],
+    id:uid(), cls:"theme-custom", name:cleanName, cat:"我的", uc:"用户生成样式", swatches:[primary, accent, soft, "#1A1A18"],
     builtin:false, favorite:false, thumb:"custom",
     customVars:{
       "--custom-primary": primary, "--custom-accent": accent, "--custom-soft": soft,
@@ -1436,10 +1445,10 @@ editor.addEventListener("input", () => {
 searchInput.addEventListener("input", () => { state.search = searchInput.value; renderLibrary(); persist(); });
 sortSelect.querySelectorAll("option").forEach((o, idx) => o.value = ["updated", "created", "chars", "title"][idx]);
 sortSelect.addEventListener("change", () => { state.sort = sortSelect.value; renderLibrary(); persist(); });
-$(".lib-section-title button").addEventListener("click", addDirectory);
-$$(".lib-section-title button")[1].addEventListener("click", addTag);
-$$(".toolbar .tbtn").find(b => b.title === "新建文档").addEventListener("click", () => createDocument());
-$$(".toolbar .tbtn").find(b => b.title === "导入 .md 文件").addEventListener("click", () => fileInput.click());
+$("[data-library-action='add-directory']").addEventListener("click", addDirectory);
+$("[data-library-action='add-tag']").addEventListener("click", addTag);
+$$("[data-toolbar-action='new-doc']").forEach(btn => btn.addEventListener("click", () => createDocument()));
+$("[data-toolbar-action='import-md']").addEventListener("click", () => fileInput.click());
 fileInput.addEventListener("change", async () => {
   const file = fileInput.files[0];
   if (!file) return;
@@ -1492,13 +1501,12 @@ $("#rail-expand-right").addEventListener("click", () => setRightCollapsed(false)
 $$("[data-rail-tab]").forEach(b => b.addEventListener("click", () => { setRightCollapsed(false); setTab(b.dataset.railTab); }));
 $("#btn-copy").addEventListener("click", () => copyRichText().catch(e => showToast(`复制失败：${e.message}`, true)));
 
-const exportButtons = $$("#tab-export button.issue");
-exportButtons[0].addEventListener("click", () => copyRichText().catch(e => showToast(`复制失败：${e.message}`, true)));
-exportButtons[1].addEventListener("click", () => copyHtml().catch(e => showToast(`复制失败：${e.message}`, true)));
-exportButtons[2].addEventListener("click", () => downloadFile(`${activeDoc().title || "article"}.html`, `<!doctype html><meta charset="utf-8">${inlineArticleHtml()}`, "text/html;charset=utf-8"));
-exportButtons[3].addEventListener("click", () => downloadFile(`${activeDoc().title || "article"}.md`, activeDoc().markdown, "text/markdown;charset=utf-8"));
-exportButtons[4].addEventListener("click", exportLibrary);
-exportButtons[5].addEventListener("click", () => libraryInput.click());
+$("[data-export-action='copy-rich']").addEventListener("click", () => copyRichText().catch(e => showToast(`复制失败：${e.message}`, true)));
+$("[data-export-action='copy-html']").addEventListener("click", () => copyHtml().catch(e => showToast(`复制失败：${e.message}`, true)));
+$("[data-export-action='download-html']").addEventListener("click", () => downloadFile(`${activeDoc().title || "article"}.html`, `<!doctype html><meta charset="utf-8">${inlineArticleHtml()}`, "text/html;charset=utf-8"));
+$("[data-export-action='download-md']").addEventListener("click", () => downloadFile(`${activeDoc().title || "article"}.md`, activeDoc().markdown, "text/markdown;charset=utf-8"));
+$("[data-export-action='export-library']").addEventListener("click", exportLibrary);
+$("[data-export-action='import-library']").addEventListener("click", () => libraryInput.click());
 
 window.addEventListener("keydown", async (e) => {
   if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
@@ -1509,5 +1517,9 @@ window.addEventListener("keydown", async (e) => {
   if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); searchInput.focus(); }
 });
 
-setActiveDoc(state.activeDocId);
+if (window.matchMedia("(max-width: 900px)").matches) {
+  setLibCollapsed(true);
+  setRightCollapsed(true);
+}
+setActiveDoc(state.activeDocId, false);
 restoreElectronLibraryBackup();

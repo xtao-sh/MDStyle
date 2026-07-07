@@ -20,6 +20,10 @@ assert.ok(html.includes('id="style-search"'), "style library must support search
 assert.ok(html.includes('id="style-category"'), "style library must support category filtering");
 assert.ok(html.includes('id="override-heading"'), "style panel must support heading-wide overrides");
 assert.ok(html.includes('id="override-font"'), "style panel must support body font overrides");
+assert.ok(html.includes('content="width=device-width, initial-scale=1"'), "web app must use device-width viewport instead of a fixed desktop viewport");
+assert.ok(html.includes("@media (max-width: 900px)"), "web app must provide a narrow-screen layout");
+assert.ok(html.includes('data-library-action="add-directory"'), "library actions must use stable data attributes");
+assert.ok(html.includes('data-export-action="copy-rich"'), "export actions must use stable data attributes");
 
 const helperStart = script.indexOf("const escapeHtml");
 const helperEnd = script.indexOf("function seedState", helperStart);
@@ -98,6 +102,11 @@ assert.ok(script.includes("escapeAttr(dir.id)"), "directory ids must be escaped 
 assert.ok(script.includes("escapeAttr(doc.id)"), "document ids must be escaped in data attributes");
 assert.ok(script.includes("escapeAttr(s.id)"), "style ids must be escaped in data attributes");
 assert.ok(script.includes("backupSaved = await backupLibraryState()"), "file backup must be awaited during persistence");
+assert.ok(script.includes("storageHadLocalState = false"), "corrupt browser storage must allow Electron backup recovery");
+assert.ok(script.includes("setActiveDoc(state.activeDocId, false)"), "initial render must not overwrite the Electron backup before recovery");
+assert.ok(script.includes("[data-export-action='copy-rich']"), "export button handlers must not depend on DOM order");
+assert.ok(script.includes("[data-library-action='add-directory']"), "library button handlers must not depend on DOM order");
+assert.ok(script.includes('window.matchMedia("(max-width: 900px)")'), "narrow screens must start with side panels collapsed");
 
 const stateStart = script.indexOf("const BUILTIN_STYLES");
 const stateEnd = script.indexOf("let storageLoadError", stateStart);
@@ -176,6 +185,8 @@ assert.ok(main.includes('ipcMain.handle("library:load"'), "Electron main process
 assert.ok(main.includes('ipcMain.handle("library:save"'), "Electron main process must handle document library backup writes");
 assert.ok(main.includes('win.webContents.on("will-navigate"'), "Electron main process must block unexpected top-level navigation");
 assert.ok(main.includes("function isAppFile"), "Electron main process must allow only app-local file navigations");
+assert.ok(main.includes("path.relative(appRoot, target)"), "Electron app-local path check must avoid unsafe prefix matching");
+assert.ok(main.includes("!relative.startsWith(\"..\")"), "Electron app-local path check must reject sibling prefixes");
 
 const preload = fs.readFileSync("electron/preload.js", "utf8");
 assert.ok(preload.includes("contextBridge.exposeInMainWorld"), "preload must expose a constrained clipboard bridge");

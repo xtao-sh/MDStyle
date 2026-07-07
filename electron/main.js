@@ -15,7 +15,8 @@ function isAppFile(url) {
     if (parsed.protocol !== "file:") return false;
     const target = path.normalize(decodeURIComponent(parsed.pathname));
     const appRoot = path.normalize(path.join(__dirname, ".."));
-    return target.startsWith(appRoot);
+    const relative = path.relative(appRoot, target);
+    return relative === "" || (!!relative && !relative.startsWith("..") && !path.isAbsolute(relative));
   } catch (_) {
     return false;
   }

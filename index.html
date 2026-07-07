@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <title>MD Style · Markdown 排版到公众号</title>
-<meta name="viewport" content="width=1440">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <link rel="icon" href="assets/app-logo.png">
 <style>
@@ -945,6 +945,54 @@
   ::-webkit-scrollbar-thumb{background:#D5D1C5;border-radius:99px;border:2px solid var(--canvas)}
   ::-webkit-scrollbar-thumb:hover{background:#B4B1A6}
   ::-webkit-scrollbar-track{background:transparent}
+
+  @media (max-width: 900px) {
+    html,body{overflow:hidden}
+    .app,
+    .app.lib-collapsed,
+    .app.right-collapsed,
+    .app.lib-collapsed.right-collapsed{
+      min-width:0;
+      min-height:0;
+      grid-template-columns:1fr;
+      grid-template-rows:48px 1fr 28px;
+      grid-template-areas:
+        "top"
+        "main"
+        "status";
+    }
+    .topbar{gap:8px;padding:0 8px;overflow-x:auto;min-width:0}
+    .brand{padding-right:8px;gap:6px;flex-shrink:0}
+    .brand-name em,.doc-meta,.save-state,.vsep{display:none}
+    .toolbar{gap:2px;flex-shrink:0}
+    .tbtn{width:30px;padding:0;justify-content:center;font-size:0}
+    .tbtn svg{width:14px;height:14px}
+    .tbtn .kbd{font-size:10px;position:absolute;transform:translate(9px,-8px)}
+    .tbtn[title="导入 .md 文件"]{display:none}
+    .copy-btn{width:34px;padding:0;justify-content:center;font-size:0}
+    .copy-btn svg{width:14px;height:14px}
+    .main{
+      grid-template-columns:1fr;
+      grid-template-rows:minmax(220px,42vh) 1fr;
+    }
+    .editor-pane{border-bottom:1px solid var(--border)}
+    .preview-scroll{padding:12px}
+    .phone-frame{max-width:100% !important}
+    .library,.right{
+      position:fixed;
+      top:48px;
+      bottom:28px;
+      z-index:70;
+      width:min(88vw,360px);
+      box-shadow:0 18px 42px -20px rgba(0,0,0,.38);
+    }
+    .library{left:0}
+    .right{right:0}
+    .library.collapsed,.right.collapsed{display:none}
+    .library.collapsed .rail,.right.collapsed .rail{display:none}
+    .toast{left:12px;right:12px;top:58px}
+    .status{overflow-x:auto;white-space:nowrap}
+  }
 </style>
 </head>
 <body>
@@ -972,10 +1020,10 @@
         <button>PC</button>
       </div>
       <div class="vsep"></div>
-      <button class="tbtn" title="新建文档">
+      <button class="tbtn" title="新建文档" data-toolbar-action="new-doc">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M8 3v10M3 8h10"/></svg>新建
       </button>
-      <button class="tbtn" title="导入 .md 文件">
+      <button class="tbtn" title="导入 .md 文件" data-toolbar-action="import-md">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M8 11V3M5 8l3 3 3-3M3 13h10"/></svg>导入
       </button>
       <button class="tbtn active" id="btn-styles" title="样式库">
@@ -1007,7 +1055,7 @@
       <button class="rail-btn" title="搜索"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg></button>
       <button class="rail-btn on" title="文档库"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 13V4a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v9M3 13h10M6 6h4M6 9h4"/></svg></button>
       <button class="rail-btn" title="标签"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M7 2H3a1 1 0 0 0-1 1v4l7 7 5-5-7-7z"/><circle cx="5" cy="5" r=".8" fill="currentColor"/></svg></button>
-      <button class="rail-btn" title="新建文档"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M8 3v10M3 8h10"/></svg></button>
+      <button class="rail-btn" title="新建文档" data-toolbar-action="new-doc"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M8 3v10M3 8h10"/></svg></button>
     </div>
 
     <div class="lib-search">
@@ -1019,7 +1067,7 @@
     </div>
 
     <div class="lib-section">
-      <div class="lib-section-title"><span>目录</span><button title="新建目录">+</button></div>
+      <div class="lib-section-title"><span>目录</span><button title="新建目录" data-library-action="add-directory">+</button></div>
       <div class="dir-tree">
         <div class="dir-item">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2 12V5a1 1 0 0 1 1-1h3l1.5 1.5H13a1 1 0 0 1 1 1V12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1z"/></svg>
@@ -1045,7 +1093,7 @@
     </div>
 
     <div class="lib-section">
-      <div class="lib-section-title"><span>标签</span><button title="管理标签">⋯</button></div>
+      <div class="lib-section-title"><span>标签</span><button title="新建标签" data-library-action="add-tag">+</button></div>
       <div class="tag-row">
         <span class="tag-chip on"><span class="dot" style="background:#5C8A7D"></span>产品</span>
         <span class="tag-chip"><span class="dot" style="background:#C9A04A"></span>访谈</span>
@@ -1433,27 +1481,27 @@ function renderWeChatHtml(ast, theme) {
           </div>
         </div>
         <div style="display:flex;flex-direction:column;gap:8px">
-          <button class="issue" style="text-align:left;cursor:pointer">
+          <button class="issue" data-export-action="copy-rich" style="text-align:left;cursor:pointer">
             <div class="sev" style="background:var(--accent-soft);color:var(--accent)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="10" height="10" rx="1.5"/><path d="M6 6h4M6 9h4"/></svg></div>
             <div class="body"><div class="title">复制富文本</div><div class="msg">写入剪贴板（text/html + text/plain），可直接粘贴到公众号。</div></div>
           </button>
-          <button class="issue" style="text-align:left;cursor:pointer">
+          <button class="issue" data-export-action="copy-html" style="text-align:left;cursor:pointer">
             <div class="sev" style="background:var(--info-soft);color:#3D5E92"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 4h8v8H4z"/><path d="M6 7l2 2 2-2"/></svg></div>
             <div class="body"><div class="title">复制 HTML 源码</div><div class="msg">已内联样式、移除危险标签。可粘贴到任何编辑器。</div></div>
           </button>
-          <button class="issue" style="text-align:left;cursor:pointer">
+          <button class="issue" data-export-action="download-html" style="text-align:left;cursor:pointer">
             <div class="sev" style="background:var(--subtle);color:var(--ink-2)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 11V3M5 8l3 3 3-3"/><path d="M3 13h10"/></svg></div>
             <div class="body"><div class="title">下载 HTML 文件</div><div class="msg">单文件，可作为备份或交付物。</div></div>
           </button>
-          <button class="issue" style="text-align:left;cursor:pointer">
+          <button class="issue" data-export-action="download-md" style="text-align:left;cursor:pointer">
             <div class="sev" style="background:var(--subtle);color:var(--ink-2)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 11V3M5 8l3 3 3-3"/><path d="M3 13h10"/></svg></div>
             <div class="body"><div class="title">下载 Markdown 原文</div><div class="msg">原始 .md 文件，便于版本管理。</div></div>
           </button>
-          <button class="issue" style="text-align:left;cursor:pointer">
+          <button class="issue" data-export-action="export-library" style="text-align:left;cursor:pointer">
             <div class="sev" style="background:var(--accent-soft);color:var(--accent)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 3h8v10H4z"/><path d="M6 6h4M6 9h4"/></svg></div>
             <div class="body"><div class="title">导出文档库 JSON</div><div class="msg">备份全部文档、目录、标签和样式。</div></div>
           </button>
-          <button class="issue" style="text-align:left;cursor:pointer">
+          <button class="issue" data-export-action="import-library" style="text-align:left;cursor:pointer">
             <div class="sev" style="background:var(--info-soft);color:#3D5E92"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 3v10M5 6l3-3 3 3"/><path d="M3 13h10"/></svg></div>
             <div class="body"><div class="title">导入文档库 JSON</div><div class="msg">从备份恢复本地文档库。</div></div>
           </button>

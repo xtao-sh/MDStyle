@@ -42,7 +42,7 @@ npm run app
 npm run package
 ```
 
-打包结果会输出到：
+本机架构的 `.app` 会输出到：
 
 ```text
 release/mac-arm64/MD Style.app
@@ -53,6 +53,15 @@ release/mac-arm64/MD Style.app
 ```bash
 npm run dist
 ```
+
+分别打包 Apple Silicon 与 Intel Mac：
+
+```bash
+npm run dist -- --arm64 --publish never
+npm run dist -- --x64 --publish never
+```
+
+推送 `v*` 标签时，GitHub Actions 会构建 arm64/x64 两套 macOS DMG，并上传到对应的 GitHub Release。
 
 App 图标资源：
 
