@@ -98,6 +98,9 @@ app.whenReady().then(async () => {
       document.querySelector("#override-strong").dispatchEvent(new Event("input", { bubbles: true }));
       await frame();
       const overridden = inlineArticleHtml();
+      const reportedExportBytes = lastRenderResult.stats.htmlBytes;
+      const actualExportBytes = new Blob([lastRenderResult.exportHtml]).size;
+      const previewBytes = new Blob([lastRenderResult.html]).size;
       const parsed = new DOMParser().parseFromString(overridden, "text/html");
       const parsedInner = parsed.body.querySelector("section > section");
       const parsedH1 = parsed.body.querySelector("h1");
@@ -116,6 +119,7 @@ app.whenReady().then(async () => {
         overrideTextExported: /color:rgb\\(18, 52, 86\\)/i.test(overridden),
         overridePageBgExported: /background:rgb\\(255, 243, 238\\)/i.test(overridden) || /background-color:rgb\\(255, 243, 238\\)/i.test(overridden),
         overrideStrongBgExported: /background(?:-color)?:rgb\\(254, 215, 170\\)/i.test(overridden),
+        compatibilityUsesFinalExport: reportedExportBytes === actualExportBytes && actualExportBytes > previewBytes,
         exportHtmlParses: !!parsedInner && !!parsedH1,
         exportStyleHasFontFamily: parsedInner?.style.fontFamily.includes("Kaiti") || parsedInner?.getAttribute("style")?.includes("font-family"),
         exportHasEscapedQuotes: overridden.includes("&quot;") || !/font-family:"/.test(overridden),
@@ -143,6 +147,7 @@ app.whenReady().then(async () => {
   if (!result.overrideTextExported) failures.push("text color override was not exported");
   if (!result.overridePageBgExported) failures.push("page background override was not exported");
   if (!result.overrideStrongBgExported) failures.push("strong background override was not exported");
+  if (!result.compatibilityUsesFinalExport) failures.push("compatibility stats did not use final inline export HTML");
   if (!result.exportHtmlParses) failures.push("exported HTML did not parse into expected wrapper structure");
   if (!result.exportStyleHasFontFamily) failures.push("exported style attribute lost font-family");
   if (!result.exportHasEscapedQuotes) failures.push("exported style attribute contains unescaped font quotes");

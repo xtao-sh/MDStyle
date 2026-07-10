@@ -1,6 +1,6 @@
 const { app, BrowserWindow, Menu, shell, ipcMain, clipboard } = require("electron");
-const fs = require("node:fs/promises");
 const path = require("node:path");
+const { createLibraryStorage } = require("./library-storage");
 
 function canOpenExternal(url) {
   try {
@@ -22,16 +22,21 @@ function isAppFile(url) {
   }
 }
 
-function libraryPath() {
-  return path.join(app.getPath("userData"), "md-style-library.json");
+let libraryStorage;
+function getLibraryStorage() {
+  if (!libraryStorage) libraryStorage = createLibraryStorage(app.getPath("userData"));
+  return libraryStorage;
+}
+function requireTrustedIpc(event) {
+  if (!isAppFile(event.senderFrame?.url || "")) throw new Error("不允许的应用请求");
 }
 
 function createWindow() {
   const win = new BrowserWindow({
     width: 1440,
     height: 900,
-    minWidth: 1240,
-    minHeight: 780,
+    minWidth: 760,
+    minHeight: 600,
     title: "MD Style",
     backgroundColor: "#F2F0EA",
     webPreferences: {
@@ -56,36 +61,37 @@ function createWindow() {
   });
 }
 
-ipcMain.handle("clipboard:write-rich", (_event, payload) => {
+ipcMain.handle("clipboard:write-rich", (event, payload) => {
+  requireTrustedIpc(event);
   const html = String(payload?.html || "");
   const text = String(payload?.text || "");
   clipboard.write({ html, text });
   return true;
 });
 
-ipcMain.handle("clipboard:write-text", (_event, text) => {
+ipcMain.handle("clipboard:write-text", (event, text) => {
+  requireTrustedIpc(event);
   clipboard.writeText(String(text || ""));
   return true;
 });
 
-ipcMain.handle("library:load", async () => {
+ipcMain.handle("library:load", async (event) => {
+  requireTrustedIpc(event);
   try {
-    const raw = await fs.readFile(libraryPath(), "utf8");
-    return JSON.parse(raw);
+    return await getLibraryStorage().load();
   } catch (error) {
-    if (error.code === "ENOENT") return null;
     throw new Error("本地备份无法读取");
   }
 });
 
-ipcMain.handle("library:save", async (_event, payload) => {
-  const body = {
-    version: 1,
-    savedAt: new Date().toISOString(),
-    state: payload?.state || payload,
-  };
-  await fs.mkdir(app.getPath("userData"), { recursive: true });
-  await fs.writeFile(libraryPath(), JSON.stringify(body, null, 2), "utf8");
+ipcMain.handle("library:save", async (event, payload) => {
+  requireTrustedIpc(event);
+  return getLibraryStorage().save(payload);
+});
+
+ipcMain.handle("library:snapshot", async (event, payload) => {
+  requireTrustedIpc(event);
+  await getLibraryStorage().snapshot(payload, payload?.reason || "manual");
   return true;
 });
 

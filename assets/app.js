@@ -9,157 +9,16 @@ const preview = document.getElementById("preview");
 const previewPane = document.getElementById("preview-pane");
 const toast = document.getElementById("toast");
 const STORAGE_KEY = "md-style-library-v1";
+const IMPORT_BACKUP_KEY = "md-style-library-before-import-v1";
+const MAX_IMPORT_BYTES = 25 * 1024 * 1024;
 const SAMPLE_MD = editor.value;
 
-const BUILTIN_STYLES = [
-  { id:"default", cls:"theme-default", name:"默认简洁", cat:"通用", uc:"克制耐读，适合大多数文章", swatches:["#2D2D2A","#5C8A7D","#F7F6F1","#26262B"], fav:true },
-  { id:"product", cls:"theme-product", name:"产品更新", cat:"产品", uc:"版本日志、功能发布、路线图", swatches:["#123D5A","#2F8F9D","#E7F4F5","#0E2433"] },
-  { id:"brief", cls:"theme-brief", name:"商业简报", cat:"商业", uc:"结论先行，数据和表格更清晰", swatches:["#202124","#B88A2A","#F4EFE2","#0F1115"], fav:true },
-  { id:"course", cls:"theme-course", name:"课程讲义", cat:"课程", uc:"知识点、步骤和练习题分层", swatches:["#274C3A","#E0A92F","#F4F1E6","#1E3329"], fav:true },
-  { id:"checklist", cls:"theme-checklist", name:"清单卡片", cat:"清单", uc:"SOP、方法论、工具清单", swatches:["#18233A","#FFB84D","#EFF3F8","#283B5B"] },
-  { id:"campaign", cls:"theme-campaign", name:"品牌营销", cat:"营销", uc:"活动发布、转化文案、品牌稿", swatches:["#8F2737","#F05A48","#FFF0E8","#32161B"] },
-  { id:"column", cls:"theme-column", name:"个人专栏", cat:"专栏", uc:"个人 IP、观点输出、随笔", swatches:["#2B3A31","#9C6F43","#F5F0E7","#DFCDB8"] },
-  { id:"essay", cls:"theme-essay", name:"深度长文", cat:"长文", uc:"严肃阅读，引用和章节稳定", swatches:["#2A2926","#8B6A3A","#C9A57A","#FBF8F1"] },
-  { id:"academic", cls:"theme-academic", name:"学术笔记", cat:"笔记", uc:"读书、论文、引用和编号", swatches:["#1A1A18","#5C4A2B","#F5F2EA","#C9A57A"] },
-  { id:"tech", cls:"theme-tech", name:"科技教程", cat:"技术", uc:"代码块、步骤、表格更突出", swatches:["#0B3D2E","#5C8A7D","#F0F5F2","#0E1A17"] },
-  { id:"mag", cls:"theme-mag", name:"视觉杂志", cat:"图文", uc:"图片、引用、标题更有视觉层次", swatches:["#3B2E18","#7A4A18","#D9C9A0","#FBF6EB"] },
-  { id:"notice", cls:"theme-notice", name:"正式通知", cat:"通知", uc:"公告、声明、正式说明", swatches:["#A23E2E","#1A1A18","#F4E3DE","#F5F0E6"] },
-  { id:"report", cls:"theme-report", name:"数据研报", cat:"商业", uc:"指标、结论、表格和分析报告", swatches:["#1B2A41","#3E6E8E","#EAF1F6","#101820"] },
-  { id:"interview", cls:"theme-interview", name:"访谈问答", cat:"访谈", uc:"人物访谈、圆桌纪要、问答稿", swatches:["#243B33","#D17845","#F7ECE3","#13231E"] },
-  { id:"newsletter", cls:"theme-newsletter", name:"邮件通讯", cat:"媒体", uc:"Newsletter、周报、信息简报", swatches:["#23324A","#5B78A7","#EEF3FA","#1D2638"] },
-  { id:"mono", cls:"theme-mono", name:"黑白锋利", cat:"观点", uc:"短评、态度稿、犀利观点", swatches:["#111111","#6F6F6F","#F3F3F0","#222222"] },
-  { id:"soft", cls:"theme-soft", name:"温柔手账", cat:"生活", uc:"生活方式、复盘、轻阅读", swatches:["#5B4A44","#D49A8A","#FFF3EE","#7C5B52"] },
-  { id:"nature", cls:"theme-nature", name:"自然笔记", cat:"科普", uc:"科普、观察、自然与健康主题", swatches:["#244837","#7E9B5F","#F1F5E8","#183126"] },
-  { id:"classic", cls:"theme-classic", name:"古典书信", cat:"文化", uc:"书评、散文、传统文化内容", swatches:["#4A2F22","#B56A35","#F8EFE2","#2C1D16"] },
-  { id:"deck", cls:"theme-deck", name:"路演提案", cat:"商业", uc:"创业计划、方案陈述、项目提案", swatches:["#14213D","#FCA311","#EEF2F7","#0B1324"] },
-];
+const themeCatalog = globalThis.MDStyleThemeCatalog;
+if (!themeCatalog) throw new Error("Theme catalog failed to load");
+const BUILTIN_STYLES = themeCatalog.themes;
+const LEGACY_STYLE_REPLACEMENTS = themeCatalog.legacyReplacements;
 
-const LEGACY_STYLE_REPLACEMENTS = {
-  plain: "default",
-  blue: "tech",
-  terminal: "tech",
-  violet: "column",
-  night: "essay",
-  news: "mag",
-  biz: "brief",
-  gov: "notice",
-  handbook: "checklist",
-};
-
-const thumbHTML = {
-  default: `<div class="thumb t-default">
-    <div class="tt">从 Markdown 到公众号</div>
-    <div class="pp">创作者经常用 Markdown 写文章，但公众号后台是富文本编辑器。</div>
-    <div class="qb">一句话：能进公众号的 HTML，是一个相当受限的子集。</div>
-    <div class="pp">• 移除 script 标签</div>
-    <div class="pp">• 内联 CSS</div>
-    <div class="cd">renderWeChatHtml(ast)</div>
-  </div>`,
-  product: `<div class="thumb t-product">
-    <div class="tt">产品更新</div>
-    <div class="pp">v2.4 发布：编辑器、样式库、复制链路。</div>
-    <div class="qb">新增：文档标签 / 目录 / 样式预览</div>
-    <div class="cd">CHANGELOG</div>
-  </div>`,
-  brief: `<div class="thumb t-brief">
-    <div class="tt">商业简报</div>
-    <div class="pp">本周核心结论：转化率提升，留存稳定。</div>
-    <div class="tbl"><span>指标</span><span>变化</span><span>判断</span></div>
-    <div class="tbl"><span>留存</span><span>+4%</span><span>健康</span></div>
-  </div>`,
-  course: `<div class="thumb t-course">
-    <div class="tt">课程讲义</div>
-    <div class="pp">01 概念：先建立心智模型。</div>
-    <div class="qb">练习：用自己的话复述这个定义。</div>
-    <div class="cd">step 1 / 3</div>
-  </div>`,
-  checklist: `<div class="thumb t-checklist">
-    <div class="tt">清单卡片</div>
-    <div class="pp">☐ 目标清楚</div>
-    <div class="pp">☐ 输入完整</div>
-    <div class="qb">适合 SOP、复盘、工具清单。</div>
-  </div>`,
-  campaign: `<div class="thumb t-campaign">
-    <div class="tt">新品限时发布</div>
-    <div class="pp">给高频写作者的一套排版工具。</div>
-    <div class="qb">今日开放：样式库 + 一键复制</div>
-    <div class="cd">CTA</div>
-  </div>`,
-  column: `<div class="thumb t-column">
-    <div class="tt">个人专栏</div>
-    <div class="pp">今天想谈一个经常被忽略的问题。</div>
-    <div class="qb">观点不怕锋利，排版要稳。</div>
-  </div>`,
-  tech: `<div class="thumb t-tech">
-    <div class="tt">从 Markdown 到公众号</div>
-    <div class="pp">公众号编辑器对 HTML 兼容性有几个规则。</div>
-    <div class="qb">能进公众号的 HTML，是一个相当受限的子集。</div>
-    <div class="cd">function render(ast){...}</div>
-  </div>`,
-  essay: `<div class="thumb t-essay">
-    <div class="tt">从 Markdown 到公众号</div>
-    <div class="pp" style="text-align:left">创作者经常用 Markdown 写文章，但公众号后台是富文本编辑器。</div>
-    <div class="qb">能进公众号的 HTML，是一个相当受限的子集。</div>
-  </div>`,
-  mag: `<div class="thumb t-mag">
-    <div class="tt">从 Markdown<br/>到公众号</div>
-    <div class="hh">— 排版方法论</div>
-    <div class="qb">能进公众号的 HTML，是一个受限的子集。</div>
-  </div>`,
-  notice: `<div class="thumb t-notice">
-    <div class="tt">关于排版规范的通知</div>
-    <div class="pp">请各位作者统一使用稳定样式。</div>
-    <div class="qb">重点事项：复制前完成兼容性检查。</div>
-  </div>`,
-  academic: `<div class="thumb t-academic">
-    <div class="tt">从 Markdown 到公众号</div>
-    <div class="pp">编辑器对 HTML 兼容性有限。</div>
-    <div class="qb">能进公众号的 HTML 是子集。</div>
-  </div>`,
-  report: `<div class="thumb t-report">
-    <div class="tt">数据研报</div>
-    <div class="pp">核心指标：增长、留存、转化。</div>
-    <div class="tbl"><span>指标</span><span>本周</span><span>判断</span></div>
-    <div class="qb">结论：结构比装饰更重要。</div>
-  </div>`,
-  interview: `<div class="thumb t-interview">
-    <div class="tt">访谈问答</div>
-    <div class="pp"><b>Q</b> 为什么要做这件事？</div>
-    <div class="qb"><b>A</b> 因为写作者需要更稳定的复制链路。</div>
-  </div>`,
-  newsletter: `<div class="thumb t-newsletter">
-    <div class="tt">本周通讯</div>
-    <div class="pp">三条新闻，一个判断。</div>
-    <div class="qb">阅读时间：5 分钟</div>
-    <div class="cd">Issue 018</div>
-  </div>`,
-  mono: `<div class="thumb t-mono">
-    <div class="tt">黑白锋利</div>
-    <div class="pp">观点要短，排版要硬。</div>
-    <div class="qb">一句话放在这里，直接给判断。</div>
-  </div>`,
-  soft: `<div class="thumb t-soft">
-    <div class="tt">温柔手账</div>
-    <div class="pp">今天记录一个很小但重要的变化。</div>
-    <div class="qb">适合复盘、生活方式和轻阅读。</div>
-  </div>`,
-  nature: `<div class="thumb t-nature">
-    <div class="tt">自然笔记</div>
-    <div class="pp">从一个观察开始，慢慢解释机制。</div>
-    <div class="qb">知识需要一点呼吸感。</div>
-  </div>`,
-  classic: `<div class="thumb t-classic">
-    <div class="tt">古典书信</div>
-    <div class="pp">见字如面，先把气韵放稳。</div>
-    <div class="qb">适合书评、散文、文化笔记。</div>
-  </div>`,
-  deck: `<div class="thumb t-deck">
-    <div class="tt">路演提案</div>
-    <div class="pp">问题 / 方案 / 进展 / 下一步。</div>
-    <div class="qb">重点：一个段落只讲一个结论。</div>
-    <div class="cd">Pitch Deck</div>
-  </div>`,
-};
+const thumbHTML = themeCatalog.thumbnails;
 
 const $ = (sel, root=document) => root.querySelector(sel);
 const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
@@ -176,15 +35,12 @@ const formatBytes = (n) => n > 1024 ? `${(n/1024).toFixed(1)} KB` : `${n} B`;
 const firstHeading = (md) => (md.match(/^#\s+(.+)$/m)?.[1] || "未命名文档").trim().slice(0, 80);
 const snippet = (md) => md.replace(/```[\s\S]*?```/g, "").replace(/[#>*_`|\-[\]()]/g, " ").replace(/\s+/g, " ").trim().slice(0, 64) || "空白文档";
 const nowIso = () => new Date().toISOString();
-const tagColors = ["#5C8A7D", "#C9A04A", "#8B6A3A", "#A23E2E", "#3D5E92", "#8B7AA8"];
 const fontPresets = {
   ui: "var(--ui)",
   serif: "var(--serif)",
   fangsong: '"FangSong","STFangsong","SimSun","Source Han Serif SC",serif',
   kaiti: '"Kaiti SC","STKaiti","KaiTi","Source Han Serif SC",serif',
 };
-const headingPresets = new Set(["", "left", "underline", "block", "center"]);
-const fontPresetIds = new Set(["", ...Object.keys(fontPresets)]);
 const timeAgo = (iso) => {
   const diff = Math.max(0, Date.now() - new Date(iso).getTime());
   const min = Math.floor(diff / 60000);
@@ -196,272 +52,24 @@ const timeAgo = (iso) => {
   if (days < 30) return `${days} 天前`;
   return new Date(iso).toLocaleDateString("zh-CN");
 };
-function normalizeCssColor(value, fallback="#1A1A18"){
-  const v = String(value || "").trim();
-  if (/^#(?:[0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(v)) return v;
-  if (/^rgba?\(\s*(?:\d{1,3}\s*,\s*){2}\d{1,3}(?:\s*,\s*(?:0|1|0?\.\d+))?\s*\)$/i.test(v)) return v;
-  if (/^hsla?\(\s*\d{1,3}(?:deg)?\s*,\s*\d{1,3}%\s*,\s*\d{1,3}%(?:\s*,\s*(?:0|1|0?\.\d+))?\s*\)$/i.test(v)) return v;
-  return fallback;
-}
+const libraryModelFactory = globalThis.MDStyleLibraryModel;
+if (!libraryModelFactory) throw new Error("Library model failed to load");
+const libraryModel = libraryModelFactory.create({
+  themes:BUILTIN_STYLES,
+  legacyReplacements:LEGACY_STYLE_REPLACEMENTS,
+  sampleMarkdown:SAMPLE_MD,
+  uid,
+  nowIso,
+  firstHeading,
+  fontPresetIds:Object.keys(fontPresets),
+});
+const { tagColors, normalizeCssColor, normalizeStyleOverrides, seedState, normalizeState } = libraryModel;
 function nextTagColor(){ return tagColors[state.tags.length % tagColors.length]; }
-function normalizeStyleRecord(style){
-  const fallback = ["#2D2D2A", "#5C8A7D", "#F7F6F1", "#26262B"];
-  const swatches = (style.swatches || fallback).map((color, idx) => normalizeCssColor(color, fallback[idx] || fallback[0]));
-  const customVars = style.customVars ? Object.fromEntries(Object.entries(style.customVars).map(([k,v], idx) => [k, normalizeCssColor(v, swatches[idx % swatches.length] || fallback[0])])) : undefined;
-  return { ...style, swatches, ...(customVars ? { customVars } : {}) };
-}
-function normalizeStyleOverrides(input={}){
-  const heading = headingPresets.has(input.heading) ? input.heading : "";
-  const font = fontPresetIds.has(input.font) ? input.font : "";
-  const out = {};
-  if (heading) out.heading = heading;
-  if (font) out.font = font;
-  if (input.textColor) out.textColor = normalizeCssColor(input.textColor, "#1A1A18");
-  if (input.pageBg) out.pageBg = normalizeCssColor(input.pageBg, "#FFFFFF");
-  if (input.strongBg) out.strongBg = normalizeCssColor(input.strongBg, "#E7EEEA");
-  if (input.accent) out.accent = normalizeCssColor(input.accent, "#5C8A7D");
-  return out;
-}
-function uniqueRecords(records, fallbackRecords=[], normalize=(x) => x){
-  const seen = new Set();
-  const out = [];
-  [...(Array.isArray(records) ? records : []), ...fallbackRecords].forEach((record) => {
-    if (!record?.id || seen.has(record.id)) return;
-    seen.add(record.id);
-    out.push(normalize(record, out.length));
-  });
-  return out;
-}
-function validIso(value, fallback=nowIso()){
-  const time = new Date(value).getTime();
-  return Number.isFinite(time) ? new Date(time).toISOString() : fallback;
-}
 
-function sanitizeLinkUrl(raw){
-  const url = String(raw || "").trim().replace(/^["']|["']$/g, "");
-  return /^https?:\/\//i.test(url) ? url : "#";
-}
-function sanitizeImageUrl(raw){
-  const url = String(raw || "").trim().replace(/^["']|["']$/g, "");
-  if (/^https?:\/\//i.test(url)) return url;
-  if (/^data:image\/(?:png|jpe?g|gif|webp);base64,/i.test(url)) return url;
-  if (/^(javascript|vbscript|file|data):/i.test(url)) return "#";
-  return url || "#";
-}
+const markdownEngine = globalThis.MDStyleMarkdown;
+if (!markdownEngine) throw new Error("Markdown engine failed to load");
+const mdToHtml = markdownEngine.render;
 
-function formatInline(s){
-  const code = [];
-  s = String(s).replace(/`([^`]+)`/g, (_, c) => {
-    code.push(`<code>${escapeHtml(c)}</code>`);
-    return `\u0000CODE${code.length - 1}\u0000`;
-  });
-  s = escapeHtml(s);
-  s = s.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_, alt, src) => {
-    const safe = sanitizeImageUrl(src);
-    return `<img src="${escapeHtml(safe)}" alt="${escapeHtml(alt)}">`;
-  });
-  s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, text, href) => {
-    const safe = sanitizeLinkUrl(href);
-    return `<a href="${escapeHtml(safe)}" target="_blank" rel="noopener noreferrer">${text}</a>`;
-  });
-  s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
-  s = s.replace(/__([^_]+)__/g, "<strong>$1</strong>");
-  s = s.replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>");
-  s = s.replace(/~~([^~]+)~~/g, "<del>$1</del>");
-  return s.replace(/\u0000CODE(\d+)\u0000/g, (_, i) => code[Number(i)] || "");
-}
-
-function legacyMdToHtml(src){
-  const lines = src.replace(/\r\n/g, "\n").split("\n");
-  const out = [];
-  const isTableSep = (l) => /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)+\|?\s*$/.test(l);
-  let i = 0;
-
-  while (i < lines.length) {
-    const ln = lines[i];
-    if (/^```/.test(ln)) {
-      const lang = ln.replace(/^```/, "").trim();
-      i++;
-      const buf = [];
-      while (i < lines.length && !/^```/.test(lines[i])) buf.push(lines[i++]);
-      if (i < lines.length) i++;
-      out.push(`<pre><code class="lang-${escapeHtml(lang)}">${escapeHtml(buf.join("\n"))}</code></pre>`);
-      continue;
-    }
-    if (/^\s*(---|\*\*\*|___)\s*$/.test(ln)) { out.push("<hr>"); i++; continue; }
-    const h = ln.match(/^(#{1,4})\s+(.*)$/);
-    if (h) { const lvl = h[1].length; out.push(`<h${lvl}>${formatInline(h[2])}</h${lvl}>`); i++; continue; }
-    if (/^>\s?/.test(ln)) {
-      const buf = [];
-      while (i < lines.length && /^>\s?/.test(lines[i])) buf.push(lines[i++].replace(/^>\s?/, ""));
-      out.push(`<blockquote><p>${formatInline(buf.join(" "))}</p></blockquote>`);
-      continue;
-    }
-    if (/^\s*\|.+\|\s*$/.test(ln) && i + 1 < lines.length && isTableSep(lines[i + 1])) {
-      const head = ln.trim().replace(/^\||\|$/g, "").split("|").map(c => c.trim());
-      i += 2;
-      const rows = [];
-      while (i < lines.length && /^\s*\|.+\|\s*$/.test(lines[i])) rows.push(lines[i++].trim().replace(/^\||\|$/g, "").split("|").map(c => c.trim()));
-      out.push(`<table><thead><tr>${head.map(c => `<th>${formatInline(c)}</th>`).join("")}</tr></thead><tbody>${rows.map(r => `<tr>${r.map(c => `<td>${formatInline(c)}</td>`).join("")}</tr>`).join("")}</tbody></table>`);
-      continue;
-    }
-    if (/^[-*+]\s+/.test(ln)) {
-      const items = [];
-      while (i < lines.length && /^[-*+]\s+/.test(lines[i])) items.push(lines[i++].replace(/^[-*+]\s+/, ""));
-      out.push(`<ul>${items.map(x => `<li>${formatInline(x)}</li>`).join("")}</ul>`);
-      continue;
-    }
-    if (/^\d+\.\s+/.test(ln)) {
-      const items = [];
-      while (i < lines.length && /^\d+\.\s+/.test(lines[i])) items.push(lines[i++].replace(/^\d+\.\s+/, ""));
-      out.push(`<ol>${items.map(x => `<li>${formatInline(x)}</li>`).join("")}</ol>`);
-      continue;
-    }
-    if (/^\s*$/.test(ln)) { i++; continue; }
-
-    const buf = [];
-    while (
-      i < lines.length &&
-      !/^\s*$/.test(lines[i]) &&
-      !/^#{1,4}\s/.test(lines[i]) &&
-      !/^>\s?/.test(lines[i]) &&
-      !/^[-*+]\s+/.test(lines[i]) &&
-      !/^\d+\.\s+/.test(lines[i]) &&
-      !/^```/.test(lines[i]) &&
-      !/^\s*(---|\*\*\*|___)\s*$/.test(lines[i]) &&
-      !(/^\s*\|.+\|\s*$/.test(lines[i]) && i + 1 < lines.length && isTableSep(lines[i + 1]))
-    ) buf.push(lines[i++]);
-    out.push(`<p>${formatInline(buf.join(" "))}</p>`);
-  }
-  return out.join("\n");
-}
-
-let markdownRenderer;
-function getMarkdownRenderer(){
-  if (markdownRenderer !== undefined) return markdownRenderer;
-  const factory = (typeof globalThis !== "undefined" && globalThis.markdownit) || (typeof window !== "undefined" && window.markdownit);
-  if (!factory) { markdownRenderer = null; return markdownRenderer; }
-  const md = factory({
-    html:false,
-    linkify:false,
-    typographer:false,
-    breaks:false,
-  });
-  const defaultLinkOpen = md.renderer.rules.link_open || ((tokens, idx, options, _env, self) => self.renderToken(tokens, idx, options));
-  md.renderer.rules.link_open = (tokens, idx, options, env, self) => {
-    const hrefIndex = tokens[idx].attrIndex("href");
-    if (hrefIndex >= 0) tokens[idx].attrs[hrefIndex][1] = sanitizeLinkUrl(tokens[idx].attrs[hrefIndex][1]);
-    tokens[idx].attrSet("target", "_blank");
-    tokens[idx].attrSet("rel", "noopener noreferrer");
-    return defaultLinkOpen(tokens, idx, options, env, self);
-  };
-  const defaultImage = md.renderer.rules.image || ((tokens, idx, options, _env, self) => self.renderToken(tokens, idx, options));
-  md.renderer.rules.image = (tokens, idx, options, env, self) => {
-    const srcIndex = tokens[idx].attrIndex("src");
-    if (srcIndex >= 0) tokens[idx].attrs[srcIndex][1] = sanitizeImageUrl(tokens[idx].attrs[srcIndex][1]);
-    return defaultImage(tokens, idx, options, env, self);
-  };
-  markdownRenderer = md;
-  return markdownRenderer;
-}
-
-function mdToHtml(src){
-  const renderer = getMarkdownRenderer();
-  return renderer ? renderer.render(String(src || "")) : legacyMdToHtml(String(src || ""));
-}
-
-function seedState(){
-  const dirs = [
-    { id:"all", name:"全部文档", system:true },
-    { id:"products", name:"产品周记" },
-    { id:"books", name:"读书笔记" },
-    { id:"tech-dir", name:"技术教程" },
-    { id:"uncategorized", name:"未分类", system:true },
-  ];
-  const tags = [
-    { id:"product", name:"产品", color:"#5C8A7D" },
-    { id:"interview", name:"访谈", color:"#C9A04A" },
-    { id:"longform", name:"长文", color:"#8B6A3A" },
-    { id:"tutorial", name:"教程", color:"#A23E2E" },
-    { id:"reading", name:"读书", color:"#3D5E92" },
-  ];
-  const docs = [
-    { id:uid(), title:firstHeading(SAMPLE_MD), manualTitle:false, markdown:SAMPLE_MD, directoryId:"products", tagIds:["product"], styleId:"default", createdAt:nowIso(), updatedAt:nowIso() },
-    { id:uid(), title:"本周 3 个产品决策的复盘", manualTitle:false, markdown:"# 本周 3 个产品决策的复盘\n\n把上周遗留的几个待决问题分别拆成 What / Why / How 三段。\n\n## 结论\n\n- 先收缩功能面\n- 保留样式库作为差异化\n- 文档库进入 MVP\n", directoryId:"products", tagIds:["product"], styleId:"brief", createdAt:nowIso(), updatedAt:new Date(Date.now() - 86400000).toISOString() },
-    { id:uid(), title:"读《卓有成效的管理者》笔记", manualTitle:false, markdown:"# 读《卓有成效的管理者》笔记\n\n德鲁克对**有效性**的定义非常工程化：记录时间、归集时间、整合时间。\n\n> 管理者的成果来自少数关键动作。\n", directoryId:"books", tagIds:["reading", "longform"], styleId:"academic", createdAt:nowIso(), updatedAt:new Date(Date.now() - 3 * 86400000).toISOString() },
-    { id:uid(), title:"SvelteKit 实战：表单与 Action", manualTitle:false, markdown:"# SvelteKit 实战：表单与 Action\n\n表单是 Web 应用最古老的东西，也是 SvelteKit 处理得很优雅的部分。\n\n```ts\nexport const actions = {\n  default: async ({ request }) => {\n    return { ok: true };\n  }\n};\n```\n", directoryId:"tech-dir", tagIds:["tutorial"], styleId:"tech", createdAt:nowIso(), updatedAt:new Date(Date.now() - 7 * 86400000).toISOString() },
-  ];
-  return { dirs, tags, docs, activeDocId:docs[0].id, activeDirId:"all", activeTagIds:[], search:"", sort:"updated", styles:BUILTIN_STYLES.map(s => ({ ...s, builtin:true, favorite:!!s.fav })) };
-}
-
-function normalizeState(saved){
-  const base = seedState();
-  if (!saved || !Array.isArray(saved.docs)) return base;
-  const builtinStyleIds = new Set(BUILTIN_STYLES.map(s => s.id));
-  const custom = uniqueRecords(Array.isArray(saved.styles) ? saved.styles.filter(s => !s.builtin && !builtinStyleIds.has(s.id)) : [], [], normalizeStyleRecord);
-  const favoriteMap = new Map((saved.styles || []).map(s => [s.id, !!s.favorite]));
-  Object.entries(LEGACY_STYLE_REPLACEMENTS).forEach(([legacyId, nextId]) => {
-    if (favoriteMap.has(legacyId) && !favoriteMap.has(nextId)) favoriteMap.set(nextId, favoriteMap.get(legacyId));
-  });
-  const savedDirs = saved.dirs?.length ? saved.dirs : base.dirs;
-  const normalizedDirs = uniqueRecords(savedDirs, base.dirs.filter(d => d.system), (dir) => ({
-    ...dir,
-    name: String(dir.name || "未命名目录").trim().slice(0, 40) || "未命名目录",
-    system: dir.id === "all" || dir.id === "uncategorized" ? true : !!dir.system,
-  }));
-  const dirIds = new Set(normalizedDirs.map(d => d.id));
-  const tags = uniqueRecords(saved.tags?.length ? saved.tags : base.tags, [], (tag, idx) => ({
-    ...tag,
-    name: String(tag.name || "未命名标签").trim().slice(0, 24) || "未命名标签",
-    color: normalizeCssColor(tag.color, tagColors[idx % tagColors.length]),
-  }));
-  const tagIds = new Set(tags.map(t => t.id));
-  const styles = [
-    ...BUILTIN_STYLES.map(s => normalizeStyleRecord({ ...s, builtin:true, favorite:favoriteMap.get(s.id) ?? !!s.fav })),
-    ...custom,
-  ];
-  const styleIds = new Set(styles.map(s => s.id));
-  const seenDocIds = new Set();
-  const docs = (saved.docs.length ? saved.docs : base.docs).map((doc) => {
-    const markdown = String(doc.markdown || "");
-    const createdAt = validIso(doc.createdAt);
-    let docId = doc.id || uid();
-    let suffix = 1;
-    while (seenDocIds.has(docId)) docId = `${doc.id || "doc"}-${suffix++}-${uid()}`;
-    seenDocIds.add(docId);
-    return {
-      ...doc,
-      id: docId,
-      title: doc.manualTitle ? (String(doc.title || "").trim().slice(0, 80) || firstHeading(markdown)) : firstHeading(markdown),
-      manualTitle: !!doc.manualTitle,
-      tagIds: Array.isArray(doc.tagIds) ? [...new Set(doc.tagIds.filter(id => tagIds.has(id)))] : [],
-      markdown,
-      directoryId: dirIds.has(doc.directoryId) && doc.directoryId !== "all" ? doc.directoryId : "uncategorized",
-      styleId: styleIds.has(doc.styleId) ? doc.styleId : (LEGACY_STYLE_REPLACEMENTS[doc.styleId] || "default"),
-      styleOverrides: normalizeStyleOverrides(doc.styleOverrides),
-      createdAt,
-      updatedAt: validIso(doc.updatedAt, createdAt),
-    };
-  });
-  const docIds = new Set(docs.map(d => d.id));
-  const activeDocId = docIds.has(saved.activeDocId) ? saved.activeDocId : docs[0]?.id || base.activeDocId;
-  const activeDirId = dirIds.has(saved.activeDirId) ? saved.activeDirId : "all";
-  const activeTagIds = Array.isArray(saved.activeTagIds) ? saved.activeTagIds.filter(id => tagIds.has(id)) : [];
-  const allowedSorts = new Set(["updated", "created", "title", "chars"]);
-  return {
-    ...base,
-    ...saved,
-    dirs: normalizedDirs,
-    tags,
-    docs,
-    styles,
-    activeDocId,
-    activeDirId,
-    activeTagIds,
-    search: String(saved.search || ""),
-    sort: allowedSorts.has(saved.sort) ? saved.sort : "updated",
-  };
-}
 
 let storageLoadError = "";
 let storageHadLocalState = false;
@@ -483,6 +91,9 @@ let styleTab = "built-in";
 let styleCategory = "all";
 let styleSearch = "";
 let saveTimer = null;
+let saveRevision = 0;
+let saveQueue = Promise.resolve(true);
+let compatibilityTimer = null;
 let lastRenderResult = { html:"", exportHtml:"", text:"", stats:{ chars:0, htmlBytes:0, imageCount:0, linkCount:0 }, issues:[] };
 
 const app = $(".app");
@@ -503,10 +114,46 @@ document.body.appendChild(libraryInput);
 
 function activeDoc(){ return state.docs.find(d => d.id === state.activeDocId) || state.docs[0]; }
 function styleById(id){ return state.styles.find(s => s.id === id) || state.styles[0]; }
-async function backupLibraryState(){
+function stateSnapshot(){
+  return JSON.parse(JSON.stringify(state));
+}
+async function backupLibraryState(snapshot=state){
   if (!window.mdStyleStorage?.saveLibrary) return true;
-  await window.mdStyleStorage.saveLibrary({ state });
+  await window.mdStyleStorage.saveLibrary({ state:snapshot });
   return true;
+}
+function saveBrowserState(snapshot=state){
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
+  return true;
+}
+function flushBrowserState(){
+  try {
+    saveBrowserState(state);
+    return true;
+  } catch (error) {
+    console.warn("Failed to flush browser library", error);
+    return false;
+  }
+}
+async function createSafetySnapshot(reason="manual"){
+  const snapshot = stateSnapshot();
+  let browserSaved = false;
+  let fileSaved = false;
+  try {
+    localStorage.setItem(IMPORT_BACKUP_KEY, JSON.stringify({ version:1, savedAt:nowIso(), state:snapshot }));
+    browserSaved = true;
+  } catch (error) {
+    console.warn("Failed to save browser safety snapshot", error);
+  }
+  if (window.mdStyleStorage?.createSnapshot) {
+    try {
+      await window.mdStyleStorage.createSnapshot({ state:snapshot }, reason);
+      fileSaved = true;
+    } catch (error) {
+      console.warn("Failed to save file safety snapshot", error);
+    }
+  }
+  return browserSaved || fileSaved;
 }
 async function restoreElectronLibraryBackup(){
   if (storageHadLocalState || !window.mdStyleStorage?.loadLibrary) return;
@@ -518,43 +165,53 @@ async function restoreElectronLibraryBackup(){
     state = nextState;
     editor.value = activeDoc().markdown;
     renderAll();
-    persist(true);
+    await persist(true);
     if (storageLoadError) showToast("已从本地备份恢复文档库");
   } catch (error) {
     console.warn("Failed to restore Electron library backup", error);
   }
 }
 function persist(immediate=false){
-  const run = async () => {
-    let localSaved = false;
-    let backupSaved = false;
-    let localError = null;
-    let backupError = null;
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-      localSaved = true;
-    } catch (error) {
-      localError = error;
-    }
-    try {
-      backupSaved = await backupLibraryState();
-    } catch (error) {
-      backupError = error;
-    }
-    if (localSaved || backupSaved) {
-      updateSaveState(backupError ? "已保存到浏览器，文件备份失败" : "已保存", !backupError);
-      if (backupError) console.warn("Failed to write Electron library backup", backupError);
-      if (localError) console.warn("Failed to save browser library", localError);
-      return true;
-    }
-    updateSaveState("保存失败", false);
-    console.warn("Failed to save library", localError || backupError);
-    return false;
+  const revision = ++saveRevision;
+  const enqueue = () => {
+    const snapshot = stateSnapshot();
+    const run = async () => {
+      let localSaved = false;
+      let backupSaved = false;
+      let localError = null;
+      let backupError = null;
+      try {
+        localSaved = saveBrowserState(snapshot);
+      } catch (error) {
+        localError = error;
+      }
+      try {
+        backupSaved = await backupLibraryState(snapshot);
+      } catch (error) {
+        backupError = error;
+      }
+      if (localSaved || backupSaved) {
+        if (revision === saveRevision) updateSaveState(backupError ? "已保存到浏览器，文件备份失败" : "已保存", !backupError);
+        if (backupError) console.warn("Failed to write Electron library backup", backupError);
+        if (localError) console.warn("Failed to save browser library", localError);
+        return true;
+      }
+      if (revision === saveRevision) updateSaveState("保存失败", false);
+      console.warn("Failed to save library", localError || backupError);
+      return false;
+    };
+    const current = saveQueue.catch(() => false).then(run);
+    saveQueue = current;
+    return current;
   };
   clearTimeout(saveTimer);
+  saveTimer = null;
   updateSaveState("保存中", false);
-  if (immediate) return run();
-  saveTimer = setTimeout(() => { run(); }, 450);
+  if (immediate) return enqueue();
+  saveTimer = setTimeout(() => {
+    saveTimer = null;
+    enqueue();
+  }, 450);
   return true;
 }
 function updateSaveState(label, done){
@@ -982,6 +639,8 @@ function markdownWithoutCode(md=""){
 
 function renderCompatibility(){
   const doc = activeDoc();
+  const exportHtml = refreshExportResult();
+  lastRenderResult.stats = collectStats(doc.markdown, lastRenderResult.html, exportHtml);
   const stats = lastRenderResult.stats;
   const issues = [];
   const title = doc?.title || firstHeading(doc?.markdown || "");
@@ -1021,6 +680,14 @@ function renderCompatibility(){
     <div class="body"><div class="title">${escapeHtml(i.title)} <span class="code">${i.code}</span></div><div class="msg">${escapeHtml(i.msg)}</div><div class="sugg"><b>建议：</b>${escapeHtml(i.sugg)}</div></div>
   </div>`).join("");
 }
+function scheduleCompatibilityRender(){
+  clearTimeout(compatibilityTimer);
+  compatibilityTimer = setTimeout(() => {
+    compatibilityTimer = null;
+    renderCompatibility();
+    renderStatus();
+  }, 120);
+}
 
 function renderStatus(){
   const doc = activeDoc();
@@ -1036,280 +703,15 @@ function renderStatus(){
   doc.updatedAt = doc.updatedAt || nowIso();
 }
 
-function cssDecl(map){
-  return Object.entries(map)
-    .filter(([, value]) => value !== undefined && value !== null && value !== "")
-    .map(([key, value]) => `${key}:${value}`)
-    .join(";");
-}
-function normalizedLineHeight(computed, fallback=1.8){
-  const raw = computed.lineHeight;
-  const fontSize = parseFloat(computed.fontSize) || 16;
-  if (!raw || raw === "normal") return String(fallback);
-  if (/px$/i.test(raw)) {
-    const ratio = parseFloat(raw) / fontSize;
-    if (Number.isFinite(ratio)) return String(Math.min(2.2, Math.max(1.35, Number(ratio.toFixed(2)))));
-  }
-  return raw;
-}
-function copyBackground(computed){
-  const color = computed.backgroundColor && computed.backgroundColor !== "rgba(0, 0, 0, 0)" ? computed.backgroundColor : "";
-  const image = computed.backgroundImage && computed.backgroundImage !== "none" ? computed.backgroundImage : "";
-  if (image && color) return `${color} ${image}`;
-  return image || color;
-}
-function copyBorder(computed, side){
-  const cap = side.charAt(0).toUpperCase() + side.slice(1);
-  return computed[`border${cap}Style`] !== "none" ? computed[`border${cap}`] : "";
-}
-function isUsefulBoxShadow(value){
-  return value && value !== "none" && !/^rgba?\(0,\s*0,\s*0,\s*0\)/i.test(value);
-}
-function copyBoxStyles(computed, extras={}){
-  return cssDecl({
-    "font-family": computed.fontFamily,
-    "font-size": computed.fontSize,
-    "font-weight": computed.fontWeight,
-    "font-style": computed.fontStyle,
-    "line-height": normalizedLineHeight(computed),
-    "letter-spacing": computed.letterSpacing,
-    "color": computed.color,
-    "background": copyBackground(computed),
-    "background-color": computed.backgroundColor && computed.backgroundColor !== "rgba(0, 0, 0, 0)" ? computed.backgroundColor : "",
-    "background-image": computed.backgroundImage && computed.backgroundImage !== "none" ? computed.backgroundImage : "",
-    "background-size": computed.backgroundSize && computed.backgroundSize !== "auto" ? computed.backgroundSize : "",
-    "background-position": computed.backgroundPosition && computed.backgroundPosition !== "0% 0%" ? computed.backgroundPosition : "",
-    "border-top": copyBorder(computed, "top"),
-    "border-right": copyBorder(computed, "right"),
-    "border-bottom": copyBorder(computed, "bottom"),
-    "border-left": copyBorder(computed, "left"),
-    "border-radius": computed.borderRadius !== "0px" ? computed.borderRadius : "",
-    "box-shadow": isUsefulBoxShadow(computed.boxShadow) ? computed.boxShadow : "",
-    "padding": computed.padding !== "0px" ? computed.padding : "",
-    "margin": computed.margin,
-    "text-align": computed.textAlign,
-    "text-decoration": computed.textDecorationLine !== "none" ? computed.textDecoration : "",
-    "text-transform": computed.textTransform !== "none" ? computed.textTransform : "",
-    "display": ["inline-block", "block", "table", "table-row", "table-cell"].includes(computed.display) ? computed.display : "",
-    "vertical-align": computed.verticalAlign && computed.verticalAlign !== "baseline" ? computed.verticalAlign : "",
-    "word-break": "break-word",
-    "overflow-wrap": "break-word",
-    "white-space": "normal",
-    ...extras,
-  });
-}
-function counterValueFor(node, name){
-  if (name === "h2") return `${[...preview.querySelectorAll("h2")].indexOf(node) + 1}`;
-  return "";
-}
-function pseudoContentText(raw, node){
-  if (!raw || raw === "none" || raw === "normal") return "";
-  if (raw.startsWith('"') || raw.startsWith("'")) {
-    try {
-      return JSON.parse(raw.replace(/^'/, '"').replace(/'$/, '"'));
-    } catch (_) {
-      return raw.slice(1, -1);
-    }
-  }
-  if (raw.includes("counter(")) {
-    const parts = [];
-    raw.replace(/counter\(([^)]+)\)|"([^"]*)"|'([^']*)'/g, (_match, name, dbl, sgl) => {
-      parts.push(name ? counterValueFor(node, name.trim()) : (dbl || sgl || ""));
-      return "";
-    });
-    if (parts.length) return parts.join("");
-  }
-  return raw;
-}
-function pseudoHasBox(computed){
-  const width = parseFloat(computed.width) || 0;
-  const height = parseFloat(computed.height) || 0;
-  return width > 0 || height > 0 || copyBackground(computed) || copyBorder(computed, "top") || copyBorder(computed, "bottom") || copyBorder(computed, "left") || copyBorder(computed, "right");
-}
-function safeCopyPseudoNode(node, pseudo){
-  const computed = getComputedStyle(node, pseudo);
-  const text = pseudoContentText(computed.content, node);
-  if (!text && !pseudoHasBox(computed)) return null;
-  const span = document.createElement("span");
-  span.textContent = text;
-  span.setAttribute("style", copyBoxStyles(computed, {
-    "display": computed.display === "block" || computed.display === "inline-block" ? computed.display : (text ? "inline" : "block"),
-    "width": computed.width && computed.width !== "auto" ? computed.width : "",
-    "height": computed.height && computed.height !== "auto" ? computed.height : "",
-    "content": "",
-    "flex-shrink": computed.flexShrink && computed.flexShrink !== "1" ? computed.flexShrink : "",
-  }));
-  return span;
-}
-function appendListItemInline(target, li, nested){
-  [...li.childNodes].forEach(child => {
-    if (child.nodeType === Node.ELEMENT_NODE) {
-      const tag = child.tagName.toLowerCase();
-      if (tag === "p") {
-        [...child.childNodes].forEach(grandchild => target.appendChild(safeCopyNode(grandchild)));
-        return;
-      }
-      if (tag === "ul" || tag === "ol") {
-        nested.push(safeCopyNode(child));
-        return;
-      }
-    }
-    target.appendChild(safeCopyNode(child));
-  });
-}
-function safeCopyNode(node){
-  if (node.nodeType === Node.TEXT_NODE) return document.createTextNode(node.textContent);
-  if (node.nodeType !== Node.ELEMENT_NODE) return document.createTextNode("");
-
-  const tag = node.tagName.toLowerCase();
-  if (["script","style","iframe","object","embed","form","input","button","video","audio"].includes(tag)) return document.createTextNode("");
-  const computed = getComputedStyle(node);
-
-  if (tag === "ul" || tag === "ol") {
-    const list = document.createElement("section");
-    list.setAttribute("style", cssDecl({
-      "max-width": "100%",
-      margin: "0 0 14px",
-      padding: "0",
-      "font-family": computed.fontFamily,
-      "font-size": computed.fontSize,
-      "line-height": normalizedLineHeight(computed),
-      color: computed.color,
-      "word-break": "break-word",
-      "overflow-wrap": "break-word",
-      "white-space": "normal",
-    }));
-    const directItems = [...node.children].filter(child => child.tagName.toLowerCase() === "li");
-    const start = Number.parseInt(node.getAttribute("start") || "1", 10) || 1;
-    directItems.forEach((li, idx) => {
-      const liComputed = getComputedStyle(li);
-      const item = document.createElement("p");
-      const marker = tag === "ol" ? `${start + idx}. ` : "• ";
-      item.setAttribute("style", copyBoxStyles(liComputed, {
-        margin: "0 0 10px",
-        padding: "0 0 0 1.8em",
-        "text-indent": "-1.8em",
-        "list-style": "none",
-      }));
-      item.appendChild(document.createTextNode(marker));
-      const nested = [];
-      appendListItemInline(item, li, nested);
-      list.appendChild(item);
-      nested.forEach(n => list.appendChild(n));
-    });
-    return list;
-  }
-
-  const out = document.createElement(tag);
-
-  if (tag === "a") {
-    const href = node.getAttribute("href");
-    if (href && !/^javascript:/i.test(href)) out.setAttribute("href", href);
-  }
-  if (tag === "img") {
-    const src = node.getAttribute("src");
-    if (src) out.setAttribute("src", src);
-    const alt = node.getAttribute("alt");
-    if (alt) out.setAttribute("alt", alt);
-  }
-  if (tag === "th" || tag === "td") {
-    const colspan = node.getAttribute("colspan");
-    const rowspan = node.getAttribute("rowspan");
-    if (colspan) out.setAttribute("colspan", colspan);
-    if (rowspan) out.setAttribute("rowspan", rowspan);
-  }
-
-  const before = safeCopyPseudoNode(node, "::before");
-  if (before) out.appendChild(before);
-  [...node.childNodes].forEach(child => out.appendChild(safeCopyNode(child)));
-  const after = safeCopyPseudoNode(node, "::after");
-  if (after) out.appendChild(after);
-
-  const base = {
-    p: () => copyBoxStyles(computed, { margin: "0 0 14px" }),
-    h1: () => copyBoxStyles(computed, { margin: "24px 0 14px" }),
-    h2: () => copyBoxStyles(computed, { margin: "26px 0 12px" }),
-    h3: () => copyBoxStyles(computed, { margin: "22px 0 10px" }),
-    h4: () => copyBoxStyles(computed, { margin: "18px 0 8px" }),
-    blockquote: () => copyBoxStyles(computed, { margin: "18px 0", padding: computed.padding || "12px 14px" }),
-    li: () => copyBoxStyles(computed, { margin: "6px 0" }),
-    pre: () => copyBoxStyles(computed, {
-      margin: "16px 0",
-      "line-height": normalizedLineHeight(computed, 1.6),
-      "white-space": "pre-wrap",
-      "word-break": "break-word",
-      "overflow-wrap": "break-word",
-    }),
-    code: () => copyBoxStyles(computed, {
-      "font-family": computed.fontFamily,
-      "line-height": normalizedLineHeight(computed, 1.6),
-      "white-space": node.closest("pre") ? "pre-wrap" : "normal",
-    }),
-    table: () => copyBoxStyles(computed, {
-      "width": "100%",
-      "max-width": "100%",
-      "border-collapse": "collapse",
-      "table-layout": "auto",
-      margin: "18px 0",
-      "font-size": computed.fontSize,
-      "line-height": normalizedLineHeight(computed, 1.6),
-    }),
-    th: () => copyBoxStyles(computed, { padding: computed.padding || "8px 10px", "line-height": normalizedLineHeight(computed, 1.6) }),
-    td: () => copyBoxStyles(computed, { padding: computed.padding || "8px 10px", "line-height": normalizedLineHeight(computed, 1.6) }),
-    img: () => cssDecl({
-      "max-width": "100%",
-      "height": "auto",
-      "display": "block",
-      "margin": "14px auto",
-      "border-radius": computed.borderRadius !== "0px" ? computed.borderRadius : "",
-    }),
-    hr: () => cssDecl({
-      border: "0",
-      "border-top": computed.borderTopStyle !== "none" ? computed.borderTop : "1px solid #E6E3DA",
-      margin: "24px auto",
-      width: "60%",
-    }),
-    strong: () => copyBoxStyles(computed, { margin: "", padding: computed.padding !== "0px" ? computed.padding : "" }),
-    em: () => copyBoxStyles(computed, { margin: "" }),
-    span: () => copyBoxStyles(computed, { margin: "" }),
-    a: () => copyBoxStyles(computed, { margin: "", color: computed.color, "text-decoration": computed.textDecorationLine !== "none" ? computed.textDecoration : "none" }),
-  };
-  const style = base[tag]?.() || copyBoxStyles(computed, { margin: computed.margin === "0px" ? "" : computed.margin });
-  out.setAttribute("style", style);
-  return out;
-}
-function inlineArticleHtml(){
-  const article = safeCopyNode(preview);
-  const computed = getComputedStyle(preview);
-  const docComputed = getComputedStyle($(".preview-doc"));
-  const outer = document.createElement("section");
-  const inner = document.createElement("section");
-  outer.setAttribute("style", cssDecl({
-    "max-width": "100%",
-    "box-sizing": "border-box",
-    "margin": "0 auto",
-    "padding": "0",
-    "background": copyBackground(docComputed),
-  }));
-  article.setAttribute("style", cssDecl({
-    "max-width": "100%",
-    "box-sizing": "border-box",
-    "background": copyBackground(docComputed),
-    "background-color": docComputed.backgroundColor && docComputed.backgroundColor !== "rgba(0, 0, 0, 0)" ? docComputed.backgroundColor : "",
-    "padding": docComputed.padding !== "0px" ? docComputed.padding : "",
-    "font-family": computed.fontFamily,
-    "font-size": computed.fontSize,
-    "line-height": normalizedLineHeight(computed),
-    "letter-spacing": computed.letterSpacing,
-    "color": computed.color,
-    "word-break": "break-word",
-    "overflow-wrap": "break-word",
-    "white-space": "normal",
-  }));
-  inner.setAttribute("style", article.getAttribute("style"));
-  inner.innerHTML = article.innerHTML;
-  outer.appendChild(inner);
-  return outer.outerHTML;
+const wechatExporterFactory = globalThis.MDStyleWechatExporter;
+if (!wechatExporterFactory) throw new Error("WeChat exporter failed to load");
+const wechatExporter = wechatExporterFactory.create({ article:preview, page:$(".preview-doc") });
+function inlineArticleHtml(){ return wechatExporter.toHtml(); }
+function refreshExportResult(){
+  const html = inlineArticleHtml();
+  lastRenderResult.exportHtml = html;
+  lastRenderResult.text = plainText(html);
+  return html;
 }
 
 async function writeClipboard(html, text){
@@ -1371,12 +773,12 @@ async function writeTextClipboard(text){
 }
 
 async function copyRichText(){
-  const html = inlineArticleHtml();
-  await writeClipboard(html, plainText(html));
+  const html = refreshExportResult();
+  await writeClipboard(html, lastRenderResult.text);
   showToast("已复制富文本到剪贴板，可粘贴到公众号编辑器");
 }
 async function copyHtml(){
-  const html = inlineArticleHtml();
+  const html = refreshExportResult();
   await writeTextClipboard(html);
   showToast("已复制 HTML 源码");
 }
@@ -1397,6 +799,7 @@ function exportLibrary(){
   downloadFile(`md-style-library-${new Date().toISOString().slice(0,10)}.json`, JSON.stringify(payload, null, 2), "application/json;charset=utf-8");
 }
 async function importLibraryFile(file){
+  if (file.size > MAX_IMPORT_BYTES) throw new Error("备份文件超过 25 MB，已拒绝导入");
   const raw = await file.text();
   let payload;
   try {
@@ -1404,12 +807,39 @@ async function importLibraryFile(file){
   } catch (error) {
     throw new Error("JSON 文件无法解析");
   }
-  const nextState = normalizeState(payload.state || payload);
+  if (Number(payload?.version || 1) > 1) throw new Error("该备份来自更高版本的 MD Style");
+  const sourceState = payload?.state || payload;
+  if (!sourceState || !Array.isArray(sourceState.docs)) throw new Error("备份缺少有效的文档列表");
+  const nextState = normalizeState(sourceState);
   if (!nextState.docs.length) throw new Error("备份里没有可导入的文档");
+  const accepted = confirm(`导入将替换当前文档库中的 ${state.docs.length} 篇文档，并载入备份中的 ${nextState.docs.length} 篇文档。继续前会自动创建安全快照。`);
+  if (!accepted) return false;
+  if (!await createSafetySnapshot("before-import")) throw new Error("无法创建导入前备份，已取消导入");
   state = nextState;
   editor.value = activeDoc().markdown;
   renderAll();
-  persist(true);
+  await persist(true);
+  return true;
+}
+async function restoreImportSafetySnapshot(){
+  let payload;
+  try {
+    const raw = localStorage.getItem(IMPORT_BACKUP_KEY);
+    if (!raw) return showToast("没有可恢复的导入前快照", true);
+    payload = JSON.parse(raw);
+  } catch (error) {
+    return showToast("导入前快照已损坏，无法恢复", true);
+  }
+  const sourceState = payload?.state || payload;
+  if (!sourceState || !Array.isArray(sourceState.docs)) return showToast("导入前快照无效", true);
+  const nextState = normalizeState(sourceState);
+  if (!confirm(`将当前 ${state.docs.length} 篇文档替换为导入前的 ${nextState.docs.length} 篇文档？当前文档库也会先创建安全快照。`)) return;
+  if (!await createSafetySnapshot("before-snapshot-restore")) return showToast("无法备份当前文档库，已取消恢复", true);
+  state = nextState;
+  editor.value = activeDoc().markdown;
+  renderAll();
+  await persist(true);
+  showToast("已恢复导入前文档库");
 }
 function showToast(message, error=false){
   $("span", toast).textContent = message;
@@ -1428,6 +858,16 @@ function setTab(which){
 }
 function setLibCollapsed(v){ app.classList.toggle("lib-collapsed", v); lib.classList.toggle("collapsed", v); }
 function setRightCollapsed(v){ app.classList.toggle("right-collapsed", v); rightPanel.classList.toggle("collapsed", v); }
+function toggleFocusMode(mode){
+  const className = `${mode}-focus`;
+  const active = !app.classList.contains(className);
+  app.classList.remove("editor-focus", "preview-focus");
+  if (active) app.classList.add(className);
+  $("#toggle-editor-fullscreen").classList.toggle("on", active && mode === "editor");
+  $("#toggle-preview-fullscreen").classList.toggle("on", active && mode === "preview");
+  $("#toggle-editor-fullscreen").title = active && mode === "editor" ? "退出编辑器全屏" : "编辑器全屏";
+  $("#toggle-preview-fullscreen").title = active && mode === "preview" ? "退出预览全屏" : "预览全屏";
+}
 
 editor.addEventListener("input", () => {
   const doc = activeDoc();
@@ -1436,9 +876,8 @@ editor.addEventListener("input", () => {
   doc.updatedAt = nowIso();
   renderPreview();
   renderMeta();
-  renderCompatibility();
-  renderStatus();
   renderLibrary();
+  scheduleCompatibilityRender();
   persist();
 });
 
@@ -1460,8 +899,8 @@ libraryInput.addEventListener("change", async () => {
   const file = libraryInput.files[0];
   if (!file) return;
   try {
-    await importLibraryFile(file);
-    showToast("已导入文档库");
+    const imported = await importLibraryFile(file);
+    if (imported) showToast("已导入文档库，原文档库已保存为安全快照");
   } catch (error) {
     showToast(`导入失败：${error.message}`, true);
   } finally {
@@ -1498,7 +937,21 @@ $("#toggle-lib").addEventListener("click", () => setLibCollapsed(!lib.classList.
 $("#toggle-right").addEventListener("click", () => setRightCollapsed(!rightPanel.classList.contains("collapsed")));
 $("#rail-expand-lib").addEventListener("click", () => setLibCollapsed(false));
 $("#rail-expand-right").addEventListener("click", () => setRightCollapsed(false));
+$$('[data-library-rail-action]').forEach(btn => btn.addEventListener("click", () => {
+  setLibCollapsed(false);
+  if (btn.dataset.libraryRailAction === "search") requestAnimationFrame(() => searchInput.focus());
+  if (btn.dataset.libraryRailAction === "tags") requestAnimationFrame(() => $(".tag-row")?.scrollIntoView({ block:"center" }));
+}));
 $$("[data-rail-tab]").forEach(b => b.addEventListener("click", () => { setRightCollapsed(false); setTab(b.dataset.railTab); }));
+$("#toggle-wrap").addEventListener("click", () => {
+  const noWrap = !editor.classList.contains("no-wrap");
+  editor.classList.toggle("no-wrap", noWrap);
+  editor.setAttribute("wrap", noWrap ? "off" : "soft");
+  $("#toggle-wrap").classList.toggle("on", !noWrap);
+  $("#toggle-wrap").title = noWrap ? "开启自动换行" : "关闭自动换行";
+});
+$("#toggle-editor-fullscreen").addEventListener("click", () => toggleFocusMode("editor"));
+$("#toggle-preview-fullscreen").addEventListener("click", () => toggleFocusMode("preview"));
 $("#btn-copy").addEventListener("click", () => copyRichText().catch(e => showToast(`复制失败：${e.message}`, true)));
 
 $("[data-export-action='copy-rich']").addEventListener("click", () => copyRichText().catch(e => showToast(`复制失败：${e.message}`, true)));
@@ -1507,6 +960,7 @@ $("[data-export-action='download-html']").addEventListener("click", () => downlo
 $("[data-export-action='download-md']").addEventListener("click", () => downloadFile(`${activeDoc().title || "article"}.md`, activeDoc().markdown, "text/markdown;charset=utf-8"));
 $("[data-export-action='export-library']").addEventListener("click", exportLibrary);
 $("[data-export-action='import-library']").addEventListener("click", () => libraryInput.click());
+$("[data-export-action='restore-import-backup']").addEventListener("click", () => restoreImportSafetySnapshot().catch(error => showToast(`恢复失败：${error.message}`, true)));
 
 window.addEventListener("keydown", async (e) => {
   if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
@@ -1517,9 +971,15 @@ window.addEventListener("keydown", async (e) => {
   if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); searchInput.focus(); }
 });
 
-if (window.matchMedia("(max-width: 900px)").matches) {
-  setLibCollapsed(true);
-  setRightCollapsed(true);
+window.addEventListener("beforeunload", flushBrowserState);
+window.addEventListener("pagehide", flushBrowserState);
+
+const narrowLayout = window.matchMedia("(max-width: 900px)");
+function syncNarrowLayout(event){
+  setLibCollapsed(event.matches);
+  setRightCollapsed(event.matches);
 }
+syncNarrowLayout(narrowLayout);
+narrowLayout.addEventListener?.("change", syncNarrowLayout);
 setActiveDoc(state.activeDocId, false);
 restoreElectronLibraryBackup();

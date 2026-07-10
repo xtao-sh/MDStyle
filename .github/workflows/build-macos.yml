@@ -1,4 +1,4 @@
-name: Build macOS App
+name: Build Desktop Releases
 
 on:
   push:
@@ -9,11 +9,11 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  build:
-    name: Build .app and .dmg (${{ matrix.arch }})
+  build-macos:
+    name: Build macOS (${{ matrix.arch }})
     runs-on: macos-latest
     strategy:
       fail-fast: false
@@ -38,8 +38,11 @@ jobs:
       - name: Run tests
         run: npm test
 
+      - name: Verify rich-text export
+        run: npm run test:copy
+
       - name: Build macOS artifacts
-        run: npm run dist -- --${{ matrix.arch }} --publish never
+        run: npm run dist:mac -- --${{ matrix.arch }} --publish never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
 
@@ -47,18 +50,60 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: MDStyle-macos-${{ matrix.arch }}-${{ github.sha }}
-          path: release/
+          path: |
+            release/*.dmg
+            release/*.zip
+          if-no-files-found: error
+          retention-days: 30
+
+  build-windows:
+    name: Build Windows (x64)
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Verify rich-text export
+        run: npm run test:copy
+
+      - name: Build Windows artifacts
+        run: npm run dist:win -- --x64 --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: MDStyle-windows-x64-${{ github.sha }}
+          path: release/*.exe
           if-no-files-found: error
           retention-days: 30
 
   release:
     name: Publish tagged release
     if: startsWith(github.ref, 'refs/tags/')
-    needs: build
+    needs:
+      - build-macos
+      - build-windows
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
-      - name: Download macOS artifacts
+      - name: Download desktop artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
@@ -75,4 +120,4 @@ jobs:
           fi
           while IFS= read -r -d '' asset; do
             gh release upload "$TAG_NAME" "$asset" --clobber
-          done < <(find artifacts -type f -name "*.dmg" -print0)
+          done < <(find artifacts -type f \( -name "*.dmg" -o -name "*.zip" -o -name "*.exe" \) -print0)

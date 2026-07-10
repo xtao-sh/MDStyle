@@ -2,41 +2,72 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import vm from "node:vm";
+import MarkdownIt from "markdown-it";
 
 const html = fs.readFileSync("index.html", "utf8");
 assert.ok(html.includes('assets/markdown-it.min.js'), "index.html must load bundled markdown-it");
+assert.ok(html.includes('assets/theme-catalog.js'), "index.html must load the validated theme catalog");
+assert.ok(html.includes('assets/markdown-engine.js'), "index.html must load the Markdown engine");
+assert.ok(html.includes('assets/library-model.js'), "index.html must load the library model");
+assert.ok(html.includes('assets/wechat-exporter.js'), "index.html must load the WeChat exporter");
+assert.ok(html.includes('assets/themes.css'), "index.html must load extracted theme styles");
+assert.ok(html.includes('assets/app.css'), "index.html must load extracted application styles");
 assert.ok(html.includes('assets/app.js'), "index.html must load extracted application script");
+for (const dependency of ["theme-catalog.js", "markdown-engine.js", "library-model.js", "wechat-exporter.js"]) {
+  assert.ok(html.indexOf(`assets/${dependency}`) < html.indexOf('assets/app.js'), `${dependency} must load before the application`);
+}
 assert.ok(!html.includes("MD Style functional MVP"), "index.html must not contain the application script body inline");
+assert.ok(!html.includes("<style>"), "index.html must not contain the application stylesheet inline");
 
 const script = fs.readFileSync("assets/app.js", "utf8");
-fs.writeFileSync("/tmp/md-style-script-check.js", script);
-execFileSync("node", ["--check", "/tmp/md-style-script-check.js"], { stdio: "inherit" });
+const themeScript = fs.readFileSync("assets/theme-catalog.js", "utf8");
+const markdownScript = fs.readFileSync("assets/markdown-engine.js", "utf8");
+const modelScript = fs.readFileSync("assets/library-model.js", "utf8");
+const exporterScript = fs.readFileSync("assets/wechat-exporter.js", "utf8");
+const appCss = fs.readFileSync("assets/app.css", "utf8");
+const themeCss = fs.readFileSync("assets/themes.css", "utf8");
+for (const file of ["assets/app.js", "assets/theme-catalog.js", "assets/markdown-engine.js", "assets/library-model.js", "assets/wechat-exporter.js"]) {
+  execFileSync("node", ["--check", file], { stdio: "inherit" });
+}
 execFileSync("node", ["--check", "electron/main.js"], { stdio: "inherit" });
 
-const builtinIds = [...script.matchAll(/\{ id:"([^"]+)", cls:"theme-[^"]+", name:"[^"]+", cat:"[^"]+"/g)].map(match => match[1]);
+const builtinIds = [...themeScript.matchAll(/\{ id:"([^"]+)", cls:"theme-[^"]+", name:"[^"]+", cat:"[^"]+"/g)].map(match => match[1]);
 assert.deepEqual(builtinIds, ["default", "product", "brief", "course", "checklist", "campaign", "column", "essay", "academic", "tech", "mag", "notice", "report", "interview", "newsletter", "mono", "soft", "nature", "classic", "deck"], "built-in styles should cover broad non-duplicative publishing scenarios");
-assert.ok(script.includes("const LEGACY_STYLE_REPLACEMENTS"), "removed built-in styles must migrate to replacement styles");
+assert.ok(themeScript.includes("const legacyReplacements"), "removed built-in styles must migrate to replacement styles");
+assert.ok(themeScript.includes("function validateCatalog"), "theme catalog must validate ids, swatches, metadata, and thumbnails");
+builtinIds.forEach(id => assert.ok(themeCss.includes(`.theme-${id}`) || id === "default", `theme CSS must include ${id}`));
+assert.ok(!html.includes(".theme-product .article"), "built-in theme CSS must not remain embedded in index.html");
+assert.ok(!html.includes(".thumb.t-product"), "theme thumbnail CSS must not remain embedded in index.html");
+
+const catalogContext = {};
+vm.createContext(catalogContext);
+vm.runInContext(themeScript, catalogContext);
+const catalog = catalogContext.MDStyleThemeCatalog;
+assert.equal(catalog.themes.length, 20);
+assert.ok(Object.isFrozen(catalog) && Object.isFrozen(catalog.themes), "theme catalog must be immutable at runtime");
+catalog.themes.forEach(theme => {
+  assert.equal(theme.cls, `theme-${theme.id}`);
+  assert.equal(theme.swatches.length, 4);
+  assert.ok(catalog.thumbnails[theme.id], `theme ${theme.id} must provide a thumbnail`);
+});
 assert.ok(html.includes('id="style-search"'), "style library must support search");
 assert.ok(html.includes('id="style-category"'), "style library must support category filtering");
 assert.ok(html.includes('id="override-heading"'), "style panel must support heading-wide overrides");
 assert.ok(html.includes('id="override-font"'), "style panel must support body font overrides");
 assert.ok(html.includes('content="width=device-width, initial-scale=1"'), "web app must use device-width viewport instead of a fixed desktop viewport");
-assert.ok(html.includes("@media (max-width: 900px)"), "web app must provide a narrow-screen layout");
+assert.ok(appCss.includes("@media (max-width: 900px)"), "web app must provide a narrow-screen layout");
 assert.ok(html.includes('data-library-action="add-directory"'), "library actions must use stable data attributes");
 assert.ok(html.includes('data-export-action="copy-rich"'), "export actions must use stable data attributes");
+assert.ok(html.includes('id="toggle-wrap"'), "editor wrap control must have a stable binding");
+assert.ok(html.includes('id="toggle-editor-fullscreen"'), "editor fullscreen control must have a stable binding");
+assert.ok(html.includes('id="toggle-preview-fullscreen"'), "preview fullscreen control must have a stable binding");
 
-const helperStart = script.indexOf("const escapeHtml");
-const helperEnd = script.indexOf("function seedState", helperStart);
-assert.ok(helperStart >= 0 && helperEnd > helperStart, "pure helper block must be extractable");
-
-const helperScript = `${script.slice(helperStart, helperEnd)}
-globalThis.__helpers = { mdToHtml, sanitizeLinkUrl, sanitizeImageUrl, normalizeCssColor, escapeAttr };
-`;
-const context = { console };
-vm.createContext(context);
-vm.runInContext(helperScript, context);
-
-const { mdToHtml, sanitizeLinkUrl, sanitizeImageUrl, normalizeCssColor, escapeAttr } = context.__helpers;
+const markdownContext = { console, markdownit:(options) => new MarkdownIt(options) };
+vm.createContext(markdownContext);
+vm.runInContext(markdownScript, markdownContext);
+const markdownApi = markdownContext.MDStyleMarkdown;
+assert.ok(Object.isFrozen(markdownApi), "Markdown API must be immutable at runtime");
+const { render:mdToHtml, sanitizeLinkUrl, sanitizeImageUrl } = markdownApi;
 
 assert.equal(sanitizeLinkUrl("https://example.com/a"), "https://example.com/a");
 assert.equal(sanitizeLinkUrl("http://example.com/a"), "http://example.com/a");
@@ -47,38 +78,68 @@ assert.equal(sanitizeImageUrl("https://example.com/a.png"), "https://example.com
 assert.equal(sanitizeImageUrl("data:image/png;base64,AAAA"), "data:image/png;base64,AAAA");
 assert.equal(sanitizeImageUrl("data:image/svg+xml;base64,AAAA"), "#");
 assert.equal(sanitizeImageUrl("file:///tmp/a.png"), "#");
-
-assert.equal(normalizeCssColor("#123"), "#123");
-assert.equal(normalizeCssColor("#112233"), "#112233");
-assert.equal(normalizeCssColor("rgb(12, 34, 56)"), "rgb(12, 34, 56)");
-assert.equal(normalizeCssColor("red;background:url(javascript:1)", "#000000"), "#000000");
-assert.equal(escapeAttr('bad" onmouseover="x'), "bad&quot; onmouseover=&quot;x");
+assert.ok(script.includes("const escapeAttr = escapeHtml;"), "dynamic data attributes must use the HTML escaping helper");
 
 const rendered = mdToHtml([
   "# 标题",
   "",
   "1. **书桌（工作区 Working Directory）**：你平时写写画画的地方。",
-  "2. [危险链接](file:///etc/passwd)",
+  "2. [安全链接](https://example.com/article)",
   "",
-  "![本地](file:///tmp/a.png)",
+  "![远程图片](https://example.com/a.png)",
 ].join("\n"));
 assert.match(rendered, /<h1>标题<\/h1>/);
-assert.match(rendered, /<ol><li><strong>书桌（工作区 Working Directory）<\/strong>：你平时写写画画的地方。<\/li><li><a href="#" target="_blank" rel="noopener noreferrer">危险链接<\/a><\/li><\/ol>/);
-assert.match(rendered, /<img src="#" alt="本地">/);
+assert.match(rendered, /<ol>\n<li><strong>书桌（工作区 Working Directory）<\/strong>：你平时写写画画的地方。<\/li>\n<li><a href="https:\/\/example.com\/article" target="_blank" rel="noopener noreferrer">安全链接<\/a><\/li>\n<\/ol>/);
+assert.match(rendered, /<img src="https:\/\/example.com\/a.png" alt="远程图片">/);
+const blockedUrls = mdToHtml("[危险链接](file:///etc/passwd)\n\n![本地](file:///tmp/a.png)");
+assert.doesNotMatch(blockedUrls, /(?:href|src)="file:/i);
 
-assert.ok(script.includes("function appendListItemInline"), "copy exporter must flatten list items before copying");
-assert.ok(script.includes("function safeCopyPseudoNode"), "copy exporter must materialize pseudo elements for rich paste");
-assert.ok(script.includes("getComputedStyle(node, pseudo)"), "copy exporter must inspect computed pseudo-element styles");
-assert.ok(script.includes("function copyBackground"), "copy exporter must preserve non-text background styles");
-assert.ok(script.includes("function legacyMdToHtml"), "legacy Markdown parser must remain as fallback");
-assert.ok(script.includes("function getMarkdownRenderer"), "Markdown rendering must prefer markdown-it when available");
-assert.ok(script.includes('"text-indent": "-1.8em"'), "copy exporter must preserve hanging indentation for lists");
-assert.ok(script.includes('"background-image":'), "copy exporter must preserve gradient/background-image styles");
-assert.ok(script.includes('"border-right": copyBorder'), "copy exporter must preserve right borders");
-assert.ok(script.includes('"box-shadow": isUsefulBoxShadow'), "copy exporter must preserve useful shadows");
-assert.ok(!script.includes('const allowed = ["font-family"'), "copy exporter must not use old computed-style allowlist");
-assert.ok(!script.includes('getPropertyValue("height")'), "copy exporter must not copy computed fixed heights");
-assert.ok(!script.includes('getPropertyValue("width")'), "copy exporter must not copy computed fixed widths");
+const enhancedEmphasis = mdToHtml([
+  "中文＊＊全角加粗＊＊中文",
+  "",
+  "正文** 前侧误加空格**正文",
+  "",
+  "正文**后侧误加空格 **正文",
+  "",
+  "正文__词内加粗__正文",
+  "",
+  "`代码＊＊不要加粗＊＊` 与 \\*\\*转义不要加粗\\*\\*",
+  "",
+  "```js",
+  "const value = '＊＊代码块不要加粗＊＊';",
+  "```not-a-closing-fence",
+  "const next = '＊＊仍在代码块内＊＊';",
+  "```",
+].join("\n"));
+assert.match(enhancedEmphasis, /中文<strong>全角加粗<\/strong>中文/);
+assert.match(enhancedEmphasis, /正文 <strong>前侧误加空格<\/strong>正文/);
+assert.match(enhancedEmphasis, /正文<strong>后侧误加空格<\/strong> 正文/);
+assert.match(enhancedEmphasis, /正文<strong>词内加粗<\/strong>正文/);
+assert.match(enhancedEmphasis, /<code>代码＊＊不要加粗＊＊<\/code> 与 \*\*转义不要加粗\*\*/);
+assert.match(enhancedEmphasis, /const value = '＊＊代码块不要加粗＊＊';/);
+assert.match(enhancedEmphasis, /const next = '＊＊仍在代码块内＊＊';/);
+assert.ok(!enhancedEmphasis.includes("<strong>代码块不要加粗</strong>"));
+assert.match(mdToHtml("变量 snake_case 保持原样"), /变量 snake_case 保持原样/);
+
+const fallbackContext = { console };
+vm.createContext(fallbackContext);
+vm.runInContext(markdownScript, fallbackContext);
+assert.match(fallbackContext.MDStyleMarkdown.render("# Fallback"), /<h1>Fallback<\/h1>/);
+assert.ok(exporterScript.includes("function appendListItemInline"), "copy exporter must flatten list items before copying");
+assert.ok(exporterScript.includes("function safeCopyPseudoNode"), "copy exporter must materialize pseudo elements for rich paste");
+assert.ok(exporterScript.includes("getComputedStyle(node, pseudo)"), "copy exporter must inspect computed pseudo-element styles");
+assert.ok(exporterScript.includes("function copyBackground"), "copy exporter must preserve non-text background styles");
+assert.ok(markdownScript.includes("function legacyMdToHtml"), "legacy Markdown parser must remain as fallback");
+assert.ok(markdownScript.includes("function getMarkdownRenderer"), "Markdown rendering must prefer markdown-it when available");
+assert.ok(markdownScript.includes("function installEnhancedEmphasis"), "Markdown rendering must enhance malformed emphasis markers");
+assert.ok(markdownScript.includes("function normalizeMarkdownMarkers"), "Markdown rendering must normalize full-width markers outside code");
+assert.ok(exporterScript.includes('"text-indent": "-1.8em"'), "copy exporter must preserve hanging indentation for lists");
+assert.ok(exporterScript.includes('"background-image":'), "copy exporter must preserve gradient/background-image styles");
+assert.ok(exporterScript.includes('"border-right": copyBorder'), "copy exporter must preserve right borders");
+assert.ok(exporterScript.includes('"box-shadow": isUsefulBoxShadow'), "copy exporter must preserve useful shadows");
+assert.ok(!exporterScript.includes('const allowed = ["font-family"'), "copy exporter must not use old computed-style allowlist");
+assert.ok(!exporterScript.includes('getPropertyValue("height")'), "copy exporter must not copy computed fixed heights");
+assert.ok(!exporterScript.includes('getPropertyValue("width")'), "copy exporter must not copy computed fixed widths");
 assert.ok(script.includes("function markdownWithoutCode"), "compatibility checker must ignore fenced and inline code before dangerous HTML checks");
 assert.ok(script.includes("const markdownToInspect = markdownWithoutCode(doc.markdown)"), "dangerous HTML checks must use code-stripped markdown");
 assert.ok(script.includes("table.rows[0]?.cells.length"), "table compatibility checker must count only the first physical row");
@@ -90,39 +151,51 @@ assert.match(script, /if \(window\.mdStyleClipboard\?\.writeRich\) \{\s*try \{\s
 assert.match(script, /if \(window\.mdStyleClipboard\?\.writeText\) \{\s*try \{\s*await window\.mdStyleClipboard\.writeText/, "plain copy must fall back when the Electron bridge rejects");
 assert.ok(script.includes("function exportLibrary"), "app must support full library export");
 assert.ok(script.includes("async function importLibraryFile"), "app must support full library import");
-assert.ok(script.includes("normalizeState(payload.state || payload)"), "library import must normalize and migrate incoming data");
+assert.ok(script.includes("const sourceState = payload?.state || payload"), "library import must validate the incoming state before migration");
 assert.ok(script.includes("async function backupLibraryState"), "Electron app must maintain a file backup of the document library");
 assert.ok(script.includes("async function restoreElectronLibraryBackup"), "Electron app must restore the file backup when browser storage is missing");
-assert.ok(script.includes("function normalizeStyleOverrides"), "documents must normalize style override payloads");
+assert.ok(modelScript.includes("function normalizeStyleOverrides"), "documents must normalize style override payloads");
 assert.ok(script.includes("function applyStyleOverrides"), "preview must apply per-document style overrides");
 assert.ok(script.includes("function renderStyleCategories"), "style library must render dynamic category filters");
-assert.ok(script.includes("copyBackground(docComputed)"), "copy exporter must preserve preview/page background");
-assert.ok(script.includes("outer.appendChild(inner)"), "copy exporter must build wrapper HTML through DOM nodes");
+assert.ok(exporterScript.includes("copyBackground(docComputed)"), "copy exporter must preserve preview/page background");
+assert.ok(exporterScript.includes("outer.appendChild(inner)"), "copy exporter must build wrapper HTML through DOM nodes");
 assert.ok(script.includes("escapeAttr(dir.id)"), "directory ids must be escaped in data attributes");
 assert.ok(script.includes("escapeAttr(doc.id)"), "document ids must be escaped in data attributes");
 assert.ok(script.includes("escapeAttr(s.id)"), "style ids must be escaped in data attributes");
-assert.ok(script.includes("backupSaved = await backupLibraryState()"), "file backup must be awaited during persistence");
+assert.ok(script.includes("backupSaved = await backupLibraryState(snapshot)"), "file backup must use an immutable queued snapshot");
+assert.ok(script.includes('window.addEventListener("beforeunload", flushBrowserState)'), "window close must synchronously flush browser storage");
+assert.ok(script.includes('createSafetySnapshot("before-import")'), "library replacement must create a safety snapshot");
+assert.ok(script.includes("async function restoreImportSafetySnapshot"), "users must be able to restore the pre-import safety snapshot");
+assert.ok(script.includes("function refreshExportResult"), "compatibility checks must use final inline export HTML");
 assert.ok(script.includes("storageHadLocalState = false"), "corrupt browser storage must allow Electron backup recovery");
 assert.ok(script.includes("setActiveDoc(state.activeDocId, false)"), "initial render must not overwrite the Electron backup before recovery");
 assert.ok(script.includes("[data-export-action='copy-rich']"), "export button handlers must not depend on DOM order");
 assert.ok(script.includes("[data-library-action='add-directory']"), "library button handlers must not depend on DOM order");
 assert.ok(script.includes('window.matchMedia("(max-width: 900px)")'), "narrow screens must start with side panels collapsed");
 
-const stateStart = script.indexOf("const BUILTIN_STYLES");
-const stateEnd = script.indexOf("let storageLoadError", stateStart);
-assert.ok(stateStart >= 0 && stateEnd > stateStart, "state helper block must be extractable");
-const stateContext = {
-  console,
-  crypto:{ randomUUID:() => "test-id" },
-  SAMPLE_MD:"# Seed\n\nBody",
-  Blob:globalThis.Blob,
-};
+const stateContext = { console };
 vm.createContext(stateContext);
-vm.runInContext(`${script.slice(stateStart, stateEnd)}
-globalThis.__stateHelpers = { normalizeState };
-`, stateContext);
+vm.runInContext(themeScript, stateContext);
+vm.runInContext(modelScript, stateContext);
+let generatedId = 0;
+const stateModel = stateContext.MDStyleLibraryModel.create({
+  themes:stateContext.MDStyleThemeCatalog.themes,
+  legacyReplacements:stateContext.MDStyleThemeCatalog.legacyReplacements,
+  sampleMarkdown:"# Seed\n\nBody",
+  uid:() => `test-id-${++generatedId}`,
+  nowIso:() => "2026-01-01T00:00:00.000Z",
+  firstHeading:(markdown) => (String(markdown).match(/^#\s+(.+)$/m)?.[1] || "未命名文档").trim().slice(0, 80),
+  fontPresetIds:["ui", "serif", "fangsong", "kaiti"],
+});
+assert.ok(Object.isFrozen(stateModel), "library model API must be immutable at runtime");
+const { normalizeState, normalizeCssColor } = stateModel;
 
-const migrated = stateContext.__stateHelpers.normalizeState({
+assert.equal(normalizeCssColor("#123"), "#123");
+assert.equal(normalizeCssColor("#112233"), "#112233");
+assert.equal(normalizeCssColor("rgb(12, 34, 56)"), "rgb(12, 34, 56)");
+assert.equal(normalizeCssColor("red;background:url(javascript:1)", "#000000"), "#000000");
+
+const migrated = normalizeState({
   dirs:[{ id:"all", name:"全部文档", system:true }, { id:"uncategorized", name:"未分类" }],
   tags:[{ id:"unsafe", name:"危险", color:"red;background:url(javascript:1)" }],
   docs:[
@@ -139,7 +212,7 @@ assert.equal(migrated.tags.find(t => t.id === "unsafe").color, "#5C8A7D");
 assert.equal(migrated.styles.find(s => s.id === "custom").swatches[0], "#2D2D2A");
 assert.equal(JSON.stringify(migrated.docs.find(d => d.id === "auto").styleOverrides), JSON.stringify({ heading:"block", font:"kaiti", textColor:"#123456", pageBg:"#FFFFFF" }));
 
-const repaired = stateContext.__stateHelpers.normalizeState({
+const repaired = normalizeState({
   dirs:[{ id:"all", name:"全部文档", system:false }],
   tags:[{ id:"known", name:"Known", color:"#123456" }],
   docs:[
@@ -165,7 +238,7 @@ assert.equal(repaired.dirs.find(d => d.id === "all").system, true);
 assert.equal(repaired.dirs.find(d => d.id === "uncategorized").system, true);
 assert.equal(repaired.styles.filter(s => s.id === "default").length, 1);
 
-const legacyStyle = stateContext.__stateHelpers.normalizeState({
+const legacyStyle = normalizeState({
   dirs:[{ id:"all", name:"全部文档", system:true }, { id:"uncategorized", name:"未分类", system:true }],
   tags:[],
   docs:[
@@ -176,6 +249,34 @@ const legacyStyle = stateContext.__stateHelpers.normalizeState({
 });
 assert.equal(legacyStyle.docs[0].styleId, "notice");
 
+const malformedRecords = normalizeState({
+  dirs:"not-an-array",
+  tags:{ bad:true },
+  docs:[null, "bad-document"],
+  styles:{ bad:true },
+});
+assert.ok(malformedRecords.docs.length > 0, "invalid document records must fall back to the seed library");
+assert.ok(malformedRecords.dirs.some(dir => dir.id === "all"));
+assert.ok(malformedRecords.dirs.some(dir => dir.id === "uncategorized"));
+
+const sanitizedCustomStyle = normalizeState({
+  dirs:[{ id:"all", name:"全部文档", system:true }, { id:"uncategorized", name:"未分类", system:true }],
+  tags:[],
+  docs:[{ id:"custom-doc", title:"Custom", manualTitle:true, markdown:"# Custom", directoryId:"uncategorized", tagIds:[], styleId:"custom-style" }],
+  styles:[{
+    id:"custom-style",
+    builtin:false,
+    name:"Custom",
+    swatches:"not-an-array",
+    customVars:{ "--custom-primary":"#123456", display:"#FFFFFF" },
+  }],
+  activeDocId:"custom-doc",
+});
+const customStyle = sanitizedCustomStyle.styles.find(style => style.id === "custom-style");
+assert.equal(customStyle.swatches.length, 4);
+assert.equal(customStyle.customVars["--custom-primary"], "#123456");
+assert.equal(customStyle.customVars.display, undefined);
+
 const main = fs.readFileSync("electron/main.js", "utf8");
 assert.ok(main.includes("function canOpenExternal"), "Electron main process must gate external URLs");
 assert.ok(main.includes('["http:", "https:"]'), "Electron external opener must only allow http/https");
@@ -183,6 +284,9 @@ assert.ok(main.includes('preload: path.join(__dirname, "preload.js")'), "Electro
 assert.ok(main.includes('ipcMain.handle("clipboard:write-rich"'), "Electron main process must handle rich clipboard writes");
 assert.ok(main.includes('ipcMain.handle("library:load"'), "Electron main process must handle document library backup reads");
 assert.ok(main.includes('ipcMain.handle("library:save"'), "Electron main process must handle document library backup writes");
+assert.ok(main.includes('ipcMain.handle("library:snapshot"'), "Electron main process must support explicit safety snapshots");
+assert.ok(main.includes("function requireTrustedIpc"), "Electron IPC handlers must reject non-app senders");
+assert.ok(main.includes("minWidth: 760"), "Electron window must be able to enter the responsive layout");
 assert.ok(main.includes('win.webContents.on("will-navigate"'), "Electron main process must block unexpected top-level navigation");
 assert.ok(main.includes("function isAppFile"), "Electron main process must allow only app-local file navigations");
 assert.ok(main.includes("path.relative(appRoot, target)"), "Electron app-local path check must avoid unsafe prefix matching");
@@ -192,5 +296,19 @@ const preload = fs.readFileSync("electron/preload.js", "utf8");
 assert.ok(preload.includes("contextBridge.exposeInMainWorld"), "preload must expose a constrained clipboard bridge");
 assert.ok(preload.includes("writeRich") && preload.includes("writeText"), "preload bridge must support rich and text copy");
 assert.ok(preload.includes("mdStyleStorage"), "preload must expose constrained document library storage");
+assert.ok(preload.includes("createSnapshot"), "preload storage bridge must expose safety snapshots");
+
+const packageConfig = JSON.parse(fs.readFileSync("package.json", "utf8"));
+assert.ok(packageConfig.build.mac.target.includes("dmg"), "macOS releases must include a DMG");
+assert.ok(packageConfig.build.mac.target.includes("zip"), "macOS releases must include a zipped app");
+assert.equal(packageConfig.build.win.icon, "assets/app-icon.ico");
+assert.deepEqual(packageConfig.build.win.target.map(target => target.target), ["nsis", "portable"], "Windows releases must include installer and portable executables");
+assert.ok(fs.existsSync("assets/app-icon.ico"), "Windows packaging icon must exist");
+
+const releaseWorkflow = fs.readFileSync(".github/workflows/build-macos.yml", "utf8");
+assert.ok(releaseWorkflow.includes("build-windows:"), "release workflow must build Windows artifacts");
+assert.ok(releaseWorkflow.includes("npm run dist:mac"), "release workflow must build macOS DMG and app archives");
+assert.ok(releaseWorkflow.includes("npm run dist:win"), "release workflow must build Windows executables");
+assert.ok(releaseWorkflow.includes('-name "*.zip"') && releaseWorkflow.includes('-name "*.exe"'), "tagged releases must upload app archives and Windows executables");
 
 console.log("smoke tests passed");

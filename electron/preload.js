@@ -21,4 +21,10 @@ contextBridge.exposeInMainWorld("mdStyleStorage", {
       state: payload?.state || payload,
     });
   },
+  createSnapshot(payload, reason = "manual") {
+    return ipcRenderer.invoke("library:snapshot", {
+      state: payload?.state || payload,
+      reason:String(reason || "manual"),
+    });
+  },
 });
