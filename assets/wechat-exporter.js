@@ -2,10 +2,10 @@
   "use strict";
 
   function create({ article:preview, page }={}){
-    if (!preview?.ownerDocument) throw new Error("WeChat exporter requires a preview element");
+    if (!preview?.ownerDocument) throw new Error("Rich text exporter requires a preview element");
     const document = preview.ownerDocument;
     const previewPage = page || preview.parentElement;
-    if (!previewPage) throw new Error("WeChat exporter requires a preview page element");
+    if (!previewPage) throw new Error("Rich text exporter requires a preview page element");
     const view = document.defaultView || global;
     const getComputedStyle = view.getComputedStyle.bind(view);
     const Node = view.Node || { ELEMENT_NODE:1, TEXT_NODE:3 };
@@ -38,6 +38,13 @@
     }
     function isUsefulBoxShadow(value){
       return value && value !== "none" && !/^rgba?\(0,\s*0,\s*0,\s*0\)/i.test(value);
+    }
+    function responsiveBlockMargin(computed){
+      const left = parseFloat(computed.marginLeft);
+      const right = parseFloat(computed.marginRight);
+      const centered = ["block", "inline-block"].includes(computed.display) && left > 0 && right > 0 && Math.abs(left - right) < 2;
+      if (!centered) return computed.margin;
+      return `${computed.marginTop || "0px"} auto ${computed.marginBottom || "0px"}`;
     }
     function copyBoxStyles(computed, extras={}){
       return cssDecl({
@@ -108,6 +115,7 @@
       span.textContent = text;
       span.setAttribute("style", copyBoxStyles(computed, {
         "display": computed.display === "block" || computed.display === "inline-block" ? computed.display : (text ? "inline" : "block"),
+        "margin": responsiveBlockMargin(computed),
         "width": computed.width && computed.width !== "auto" ? computed.width : "",
         "height": computed.height && computed.height !== "auto" ? computed.height : "",
         "content": "",
@@ -115,8 +123,9 @@
       }));
       return span;
     }
-    function appendListItemInline(target, li, nested){
+    function appendListItemInline(target, li, nested, depth){
       [...li.childNodes].forEach(child => {
+        if (child.nodeType === Node.TEXT_NODE && !child.textContent.trim()) return;
         if (child.nodeType === Node.ELEMENT_NODE) {
           const tag = child.tagName.toLowerCase();
           if (tag === "p") {
@@ -124,14 +133,14 @@
             return;
           }
           if (tag === "ul" || tag === "ol") {
-            nested.push(safeCopyNode(child));
+            nested.push(safeCopyNode(child, depth + 1));
             return;
           }
         }
-        target.appendChild(safeCopyNode(child));
+        target.appendChild(safeCopyNode(child, depth));
       });
     }
-    function safeCopyNode(node){
+    function safeCopyNode(node, listDepth=0){
       if (node.nodeType === Node.TEXT_NODE) return document.createTextNode(node.textContent);
       if (node.nodeType !== Node.ELEMENT_NODE) return document.createTextNode("");
     
@@ -143,8 +152,8 @@
         const list = document.createElement("section");
         list.setAttribute("style", cssDecl({
           "max-width": "100%",
-          margin: "0 0 14px",
-          padding: "0",
+          margin: listDepth ? "4px 0 8px" : "0 0 14px",
+          padding: listDepth ? "0 0 0 1.8em" : "0",
           "font-family": computed.fontFamily,
           "font-size": computed.fontSize,
           "line-height": normalizedLineHeight(computed),
@@ -167,7 +176,7 @@
           }));
           item.appendChild(document.createTextNode(marker));
           const nested = [];
-          appendListItemInline(item, li, nested);
+          appendListItemInline(item, li, nested, listDepth);
           list.appendChild(item);
           nested.forEach(n => list.appendChild(n));
         });
@@ -195,12 +204,12 @@
     
       const before = safeCopyPseudoNode(node, "::before");
       if (before) out.appendChild(before);
-      [...node.childNodes].forEach(child => out.appendChild(safeCopyNode(child)));
+      [...node.childNodes].forEach(child => out.appendChild(safeCopyNode(child, listDepth)));
       const after = safeCopyPseudoNode(node, "::after");
       if (after) out.appendChild(after);
     
       const base = {
-        p: () => copyBoxStyles(computed, { margin: "0 0 14px" }),
+        p: () => copyBoxStyles(computed, { margin: computed.margin && computed.margin !== "0px" ? computed.margin : "0 0 14px" }),
         h1: () => copyBoxStyles(computed, { margin: "24px 0 14px" }),
         h2: () => copyBoxStyles(computed, { margin: "26px 0 12px" }),
         h3: () => copyBoxStyles(computed, { margin: "22px 0 10px" }),
@@ -289,5 +298,7 @@
     return Object.freeze({ toHtml:inlineArticleHtml });
   }
 
-  global.MDStyleWechatExporter = Object.freeze({ create });
+  const api = Object.freeze({ create });
+  global.MDStyleRichTextExporter = api;
+  global.MDStyleWechatExporter = api;
 })(globalThis);

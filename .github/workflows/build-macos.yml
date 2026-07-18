@@ -109,6 +109,13 @@ jobs:
           path: artifacts
           merge-multiple: true
 
+      - name: Generate SHA-256 checksums
+        run: |
+          find artifacts -type f \( -name "*.dmg" -o -name "*.zip" -o -name "*.exe" \) -print0 \
+            | sort -z \
+            | xargs -0 sha256sum \
+            | sed 's#  artifacts/#  #' > artifacts/SHA256SUMS.txt
+
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -116,8 +123,8 @@ jobs:
           TAG_NAME: ${{ github.ref_name }}
         run: |
           if ! gh release view "$TAG_NAME" >/dev/null 2>&1; then
-            gh release create "$TAG_NAME" --generate-notes --title "$TAG_NAME"
+            gh release create "$TAG_NAME" --generate-notes --title "MD Style $TAG_NAME"
           fi
           while IFS= read -r -d '' asset; do
             gh release upload "$TAG_NAME" "$asset" --clobber
-          done < <(find artifacts -type f \( -name "*.dmg" -o -name "*.zip" -o -name "*.exe" \) -print0)
+          done < <(find artifacts -type f \( -name "*.dmg" -o -name "*.zip" -o -name "*.exe" -o -name "SHA256SUMS.txt" \) -print0)

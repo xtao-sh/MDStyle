@@ -4,7 +4,10 @@
   const escapeHtml = (s="") => String(s).replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#039;" }[c]));
   function sanitizeLinkUrl(raw){
     const url = String(raw || "").trim().replace(/^["']|["']$/g, "");
-    return /^https?:\/\//i.test(url) ? url : "#";
+    if (/^https?:\/\//i.test(url)) return url;
+    if (/^(?:mailto|tel):[^\s]+$/i.test(url)) return url;
+    if (/^(?:#|\/|\.\.?\/|\?)[^\s]*$/.test(url)) return url;
+    return "#";
   }
   function sanitizeImageUrl(raw){
     const url = String(raw || "").trim().replace(/^["']|["']$/g, "");

@@ -2,12 +2,12 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<title>MD Style · Markdown 排版到公众号</title>
+<title>MD Style · Markdown 富文本排版</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https:; object-src 'none'; base-uri 'none'; form-action 'none'">
-<link rel="icon" href="assets/app-logo.png">
-<link rel="stylesheet" href="assets/app.css">
-<link rel="stylesheet" href="assets/themes.css">
+<link rel="icon" href="assets/app-logo.png?v=0.2.0-20260718">
+<link rel="stylesheet" href="assets/app.css?v=0.2.0-20260718-2">
+<link rel="stylesheet" href="assets/themes.css?v=0.2.0-20260718">
 </head>
 <body>
 
@@ -15,12 +15,12 @@
 
   <!-- ============ TOP BAR ============ -->
   <header class="topbar">
-    <button class="pane-toggle" id="toggle-lib" title="折叠 / 展开文档库" style="margin-right:2px">
+    <button class="pane-toggle" id="toggle-lib" title="折叠 / 展开文档库" aria-label="折叠或展开文档库" aria-controls="library" aria-expanded="true" style="margin-right:2px">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="3" width="12" height="10" rx="1.2"/><path d="M6 3v10"/></svg>
     </button>
     <div class="brand">
       <div class="brand-mark">MS</div>
-      <div class="brand-name">MD Style<em>Markdown → 公众号</em></div>
+      <div class="brand-name">MD Style<em>Markdown → 富文本</em></div>
     </div>
 
     <div class="doc-meta">
@@ -29,12 +29,12 @@
     </div>
 
     <div class="toolbar">
-      <div class="mode-toggle" title="预览模式">
-        <button class="on">手机</button>
-        <button>PC</button>
+      <div class="mode-toggle" title="预览宽度" role="group" aria-label="预览宽度">
+        <button class="on" data-preview-width="mobile" aria-pressed="true">移动</button>
+        <button data-preview-width="desktop" aria-pressed="false">桌面</button>
       </div>
       <div class="vsep"></div>
-      <button class="tbtn" title="新建文档" data-toolbar-action="new-doc">
+      <button class="tbtn" title="从模板新建文档" data-toolbar-action="new-doc">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M8 3v10M3 8h10"/></svg>新建
       </button>
       <button class="tbtn" title="导入 .md 文件" data-toolbar-action="import-md">
@@ -52,14 +52,14 @@
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="5" y="5" width="9" height="9" rx="1.5"/><path d="M11 5V3a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h2"/></svg>
         一键复制富文本
       </button>
-      <button class="pane-toggle" id="toggle-right" title="折叠 / 展开右侧面板" style="margin-left:2px">
+      <button class="pane-toggle" id="toggle-right" title="折叠 / 展开右侧面板" aria-label="折叠或展开设置面板" aria-controls="right" aria-expanded="true" style="margin-left:2px">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="3" width="12" height="10" rx="1.2"/><path d="M10 3v10"/></svg>
       </button>
     </div>
   </header>
 
   <!-- ============ LIBRARY (LEFT) ============ -->
-  <aside class="library" id="library">
+  <aside class="library" id="library" aria-label="文档库">
     <!-- Rail (shown when collapsed) -->
     <div class="rail">
       <button class="rail-btn" id="rail-expand-lib" title="展开文档库">
@@ -69,7 +69,7 @@
       <button class="rail-btn" title="搜索" data-library-rail-action="search"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg></button>
       <button class="rail-btn on" title="文档库" data-library-rail-action="library"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 13V4a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v9M3 13h10M6 6h4M6 9h4"/></svg></button>
       <button class="rail-btn" title="标签" data-library-rail-action="tags"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M7 2H3a1 1 0 0 0-1 1v4l7 7 5-5-7-7z"/><circle cx="5" cy="5" r=".8" fill="currentColor"/></svg></button>
-      <button class="rail-btn" title="新建文档" data-toolbar-action="new-doc"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M8 3v10M3 8h10"/></svg></button>
+      <button class="rail-btn" title="从模板新建文档" data-toolbar-action="new-doc"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M8 3v10M3 8h10"/></svg></button>
     </div>
 
     <div class="lib-search">
@@ -80,8 +80,20 @@
       </div>
     </div>
 
+    <form class="inline-builder library-editor" id="library-editor" hidden>
+      <div class="inline-builder-head">
+        <div><b id="library-editor-title">编辑文档</b><span id="library-editor-hint">修改会自动保存到本地文档库。</span></div>
+        <button type="button" class="builder-close" id="close-library-editor" title="关闭" aria-label="关闭编辑器">×</button>
+      </div>
+      <div class="builder-fields" id="library-editor-fields"></div>
+      <div class="builder-actions">
+        <button type="button" id="cancel-library-editor">取消</button>
+        <button type="submit" class="builder-primary" id="save-library-editor">保存</button>
+      </div>
+    </form>
+
     <div class="lib-section">
-      <div class="lib-section-title"><span>目录</span><button title="新建目录" data-library-action="add-directory">+</button></div>
+      <div class="lib-section-title"><span>目录</span><button type="button" title="新建目录" aria-label="新建目录" data-library-action="add-directory">+</button></div>
       <div class="dir-tree">
         <div class="dir-item">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2 12V5a1 1 0 0 1 1-1h3l1.5 1.5H13a1 1 0 0 1 1 1V12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1z"/></svg>
@@ -107,7 +119,7 @@
     </div>
 
     <div class="lib-section">
-      <div class="lib-section-title"><span>标签</span><button title="新建标签" data-library-action="add-tag">+</button></div>
+      <div class="lib-section-title"><span>标签</span><button type="button" title="新建标签" aria-label="新建标签" data-library-action="add-tag">+</button></div>
       <div class="tag-row">
         <span class="tag-chip on"><span class="dot" style="background:#5C8A7D"></span>产品</span>
         <span class="tag-chip"><span class="dot" style="background:#C9A04A"></span>访谈</span>
@@ -246,7 +258,7 @@ function renderWeChatHtml(ast, theme) {
       <div class="pane-head">
         <span class="label">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="4" y="2" width="8" height="12" rx="1"/><circle cx="8" cy="12" r=".5" fill="currentColor"/></svg>
-          公众号预览 · 手机宽度
+          <span id="preview-label-text">通用富文本 · 移动宽度</span>
         </span>
         <div class="right">
           <button class="style-chip" id="style-chip" title="切换样式">
@@ -261,15 +273,15 @@ function renderWeChatHtml(ast, theme) {
         <div class="phone-frame">
           <div class="phone-bar">
             <span>9:41</span>
-            <span>公众号</span>
+            <span>富文本预览</span>
             <div class="dots"><span></span><span></span><span></span></div>
           </div>
           <div class="preview-doc">
             <div class="wx-meta">
               <div class="av"></div>
               <div>
-                <div style="color:var(--ink-2);font-size:12.5px;font-weight:500">示例公众号</div>
-                <div style="font-size:10.5px;color:var(--ink-4);margin-top:1px">2026-05-27 · 原创</div>
+                <div style="color:var(--ink-2);font-size:12.5px;font-weight:500">MD Style 文档</div>
+                <div style="font-size:10.5px;color:var(--ink-4);margin-top:1px">本地预览 · 富文本</div>
               </div>
             </div>
             <article class="article" id="preview"></article>
@@ -280,7 +292,7 @@ function renderWeChatHtml(ast, theme) {
   </section>
 
   <!-- ============ RIGHT DRAWER ============ -->
-  <aside class="right" id="right">
+  <aside class="right" id="right" aria-label="样式、模板、兼容性与导出">
     <!-- Rail (shown when collapsed) -->
     <div class="rail">
       <button class="rail-btn" id="rail-expand-right" title="展开右侧面板">
@@ -288,6 +300,7 @@ function renderWeChatHtml(ast, theme) {
       </button>
       <div class="rail-sep"></div>
       <button class="rail-btn on" data-rail-tab="styles" title="样式库"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="5"/><path d="M3 8h10"/></svg></button>
+      <button class="rail-btn" data-rail-tab="templates" title="文档模板"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M4 2.5h6l2 2V13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1z"/><path d="M9.5 2.5V5H12M5.5 8h5M5.5 10.5h4"/></svg></button>
       <button class="rail-btn" data-rail-tab="compat" title="兼容性检查" style="position:relative">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M8 1l6 3v5c0 3.5-2.5 5.5-6 6.5-3.5-1-6-3-6-6.5V4l6-3z"/></svg>
         <span style="position:absolute;top:2px;right:2px;width:6px;height:6px;border-radius:50%;background:var(--warn)"></span>
@@ -295,15 +308,18 @@ function renderWeChatHtml(ast, theme) {
       <button class="rail-btn" data-rail-tab="export" title="导出"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M8 11V3M5 8l3 3 3-3M3 13h10"/></svg></button>
     </div>
 
-    <div class="right-tabs">
-      <button class="right-tab on" data-tab="styles">
+    <div class="right-tabs" role="tablist" aria-label="设置面板">
+      <button class="right-tab on" id="right-tab-styles" data-tab="styles" role="tab" aria-selected="true" aria-controls="tab-styles">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" style="width:13px;height:13px"><circle cx="8" cy="8" r="5"/><path d="M3 8h10"/></svg>
         样式库
       </button>
-      <button class="right-tab" data-tab="compat">
+      <button class="right-tab" id="right-tab-templates" data-tab="templates" role="tab" aria-selected="false" aria-controls="tab-templates" tabindex="-1">
+        模板
+      </button>
+      <button class="right-tab" id="right-tab-compat" data-tab="compat" role="tab" aria-selected="false" aria-controls="tab-compat" tabindex="-1">
         兼容性检查 <span class="badge">2</span>
       </button>
-      <button class="right-tab" data-tab="export" style="margin-left:auto">
+      <button class="right-tab" id="right-tab-export" data-tab="export" role="tab" aria-selected="false" aria-controls="tab-export" tabindex="-1" style="margin-left:auto">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" style="width:13px;height:13px"><path d="M8 11V3M5 8l3 3 3-3M3 13h10"/></svg>
         导出
       </button>
@@ -312,17 +328,43 @@ function renderWeChatHtml(ast, theme) {
     <div class="right-body">
 
       <!-- Style library tab -->
-      <div class="panel" id="tab-styles">
+      <div class="panel" id="tab-styles" role="tabpanel" aria-labelledby="right-tab-styles">
         <div class="panel-h">
           <div>
             <div class="ttl">样式库</div>
             <div class="sub">选择一套样式，预览立刻切换。鼠标悬停可看大图。</div>
           </div>
-          <button class="new-btn">
+          <button class="new-btn" id="generate-style">
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" style="width:11px;height:11px"><path d="M8 3v10M3 8h10"/></svg>
             自定义生成
           </button>
         </div>
+
+        <form class="inline-builder" id="style-builder" hidden>
+          <div class="inline-builder-head">
+            <div><b>创建个人样式</b><span>以当前样式配色为起点，设置完整的正文与页面外观。</span></div>
+            <button type="button" class="builder-close" id="cancel-style" title="取消">×</button>
+          </div>
+          <div class="builder-fields">
+            <label class="builder-field builder-field-wide">样式名称<input id="custom-style-name" maxlength="40" required></label>
+            <label class="builder-field builder-field-wide">适用场景<input id="custom-style-use" maxlength="80" value="个人文档与富文本发布" required></label>
+            <label class="builder-field">视觉强度<select id="custom-style-intensity"><option value="稳健">稳健</option><option value="鲜明" selected>鲜明</option><option value="先锋">先锋</option></select></label>
+            <label class="builder-field">标题结构<select id="custom-style-heading"><option value="left">左侧强调线</option><option value="underline">底部分割线</option><option value="block">色块标题</option><option value="center">居中标题</option></select></label>
+            <label class="builder-field">正文字体<select id="custom-style-font"><option value="ui">现代黑体</option><option value="serif">宋体衬线</option><option value="fangsong">仿宋正式</option><option value="kaiti">楷体书写</option><option value="humanist">人文无衬线</option><option value="rounded">圆体活泼</option><option value="mono">等宽技术</option></select></label>
+            <label class="builder-field">正文字号<input type="number" id="custom-style-size" min="14" max="18" step="0.5" value="15.5"></label>
+            <label class="builder-field">正文行距<input type="number" id="custom-style-line" min="1.5" max="2.1" step="0.05" value="1.85"></label>
+            <label class="builder-field">文字颜色<input type="color" id="custom-style-text" value="#1a1a18"></label>
+            <label class="builder-field">标题主色<input type="color" id="custom-style-primary" value="#2f5d4f"></label>
+            <label class="builder-field">强调色<input type="color" id="custom-style-accent" value="#5c8a7d"></label>
+            <label class="builder-field">重点背景<input type="color" id="custom-style-soft" value="#e7eeea"></label>
+            <label class="builder-field">页面背景<input type="color" id="custom-style-page" value="#ffffff"></label>
+            <label class="builder-field">代码背景<input type="color" id="custom-style-code" value="#1a1a18"></label>
+          </div>
+          <div class="builder-actions">
+            <button type="button" id="cancel-style-secondary">取消</button>
+            <button type="submit" class="builder-primary">创建并应用</button>
+          </div>
+        </form>
 
         <div class="current-style">
           <div class="swatches">
@@ -350,7 +392,13 @@ function renderWeChatHtml(ast, theme) {
         <div class="style-filters">
           <input class="style-filter-input" id="style-search" placeholder="搜索样式、用途、类别">
           <select class="style-filter-select" id="style-category">
-            <option value="all">全部类别</option>
+            <option value="all">全部视觉家族</option>
+          </select>
+          <select class="style-filter-select" id="style-intensity">
+            <option value="all">全部强度</option>
+            <option value="稳健">稳健</option>
+            <option value="鲜明">鲜明</option>
+            <option value="先锋">先锋</option>
           </select>
         </div>
 
@@ -359,43 +407,25 @@ function renderWeChatHtml(ast, theme) {
             <div class="ttl">整体调整</div>
             <button id="reset-overrides">恢复样式默认</button>
           </div>
-          <div class="style-controls">
-            <div class="style-control">
-              <label for="override-heading">标题样式</label>
-              <select id="override-heading">
-                <option value="">跟随模板</option>
-                <option value="left">左侧强调线</option>
-                <option value="underline">底部分割线</option>
-                <option value="block">色块标题</option>
-                <option value="center">居中标题</option>
-              </select>
-            </div>
-            <div class="style-control">
-              <label for="override-font">正文字体</label>
-              <select id="override-font">
-                <option value="">跟随模板</option>
-                <option value="ui">现代黑体</option>
-                <option value="serif">宋体衬线</option>
-                <option value="fangsong">仿宋正式</option>
-                <option value="kaiti">楷体书写</option>
-              </select>
-            </div>
-            <div class="style-control">
-              <label for="override-text">文字颜色</label>
-              <input type="color" id="override-text" value="#1A1A18">
-            </div>
-            <div class="style-control">
-              <label for="override-page">页面背景</label>
-              <input type="color" id="override-page" value="#FFFFFF">
-            </div>
-            <div class="style-control">
-              <label for="override-strong">重点背景</label>
-              <input type="color" id="override-strong" value="#E7EEEA">
-            </div>
-            <div class="style-control">
-              <label for="override-accent">标题强调色</label>
-              <input type="color" id="override-accent" value="#5C8A7D">
-            </div>
+          <div class="style-control-groups">
+            <fieldset class="style-control-group"><legend>字体与标题</legend><div class="style-controls">
+              <div class="style-control"><label for="override-heading">标题样式</label><select id="override-heading"><option value="">跟随模板</option><option value="left">左侧强调线</option><option value="underline">底部分割线</option><option value="block">色块标题</option><option value="center">居中标题</option></select></div>
+              <div class="style-control"><label for="override-font">正文字体</label><select id="override-font"><option value="">跟随模板</option><option value="ui">现代黑体</option><option value="serif">宋体衬线</option><option value="fangsong">仿宋正式</option><option value="kaiti">楷体书写</option><option value="humanist">人文无衬线</option><option value="rounded">圆体活泼</option><option value="mono">等宽技术</option></select></div>
+              <div class="style-control"><label for="override-text">文字颜色</label><input type="color" id="override-text" value="#1A1A18"></div>
+              <div class="style-control"><label for="override-accent">标题强调色</label><input type="color" id="override-accent" value="#5C8A7D"></div>
+            </div></fieldset>
+            <fieldset class="style-control-group"><legend>页面与段落</legend><div class="style-controls">
+              <div class="style-control"><label for="override-page">页面背景</label><input type="color" id="override-page" value="#FFFFFF"></div>
+              <div class="style-control"><label for="override-paragraph">段落背景</label><input type="color" id="override-paragraph" value="#FFFFFF"></div>
+              <div class="style-control"><label for="override-paragraph-spacing">段落间距</label><input type="number" id="override-paragraph-spacing" min="6" max="36" step="1" value="14"></div>
+              <div class="style-control"><label for="override-strong">重点背景</label><input type="color" id="override-strong" value="#E7EEEA"></div>
+            </div></fieldset>
+            <fieldset class="style-control-group"><legend>内容组件</legend><div class="style-controls">
+              <div class="style-control"><label for="override-quote">引用背景</label><input type="color" id="override-quote" value="#F7F6F1"></div>
+              <div class="style-control"><label for="override-code-bg">代码背景</label><input type="color" id="override-code-bg" value="#26262B"></div>
+              <div class="style-control"><label for="override-table-header">表头背景</label><input type="color" id="override-table-header" value="#2F5D4F"></div>
+              <div class="style-control"><label for="override-link">链接颜色</label><input type="color" id="override-link" value="#2F5D4F"></div>
+            </div></fieldset>
           </div>
         </div>
 
@@ -404,13 +434,73 @@ function renderWeChatHtml(ast, theme) {
         </div>
       </div>
 
+      <!-- Document templates tab -->
+      <div class="panel" id="tab-templates" role="tabpanel" aria-labelledby="right-tab-templates" style="display:none">
+        <div class="panel-h">
+          <div>
+            <div class="ttl">文档模板</div>
+            <div class="sub">选择场景后创建一篇带结构、标签和推荐样式的新文档。</div>
+          </div>
+          <div class="panel-actions">
+            <button class="new-btn" id="save-template" title="将当前文档保存为个人模板">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" style="width:11px;height:11px"><path d="M3 2.5h8l2 2V13H3z"/><path d="M5 2.5v4h5v-4M5.5 11h5"/></svg>
+              保存当前
+            </button>
+            <button class="new-btn" id="create-blank-doc">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" style="width:11px;height:11px"><path d="M8 3v10M3 8h10"/></svg>
+              空白
+            </button>
+          </div>
+        </div>
+
+        <form class="inline-builder" id="template-builder" hidden>
+          <div class="inline-builder-head">
+            <div><b id="template-builder-title">保存个人模板</b><span id="template-builder-hint">保留当前 Markdown、推荐样式、标签和发布目标。</span></div>
+            <button type="button" class="builder-close" id="cancel-template" title="取消">×</button>
+          </div>
+          <div class="builder-fields">
+            <label class="builder-field builder-field-wide">模板名称<input id="template-name" maxlength="50" required></label>
+            <label class="builder-field builder-field-wide">场景<input id="template-custom-category" maxlength="24" value="我的模板" required></label>
+            <label class="builder-field builder-field-wide">用途说明<input id="template-description" maxlength="120" required></label>
+            <label class="builder-toggle builder-field-wide" id="template-refresh-row" hidden>
+              <input type="checkbox" id="template-refresh-content">
+              <span><b>用当前文档更新模板内容</b><small>同时更新 Markdown、标签、样式和发布目标。</small></span>
+            </label>
+          </div>
+          <div class="builder-actions">
+            <button type="button" id="cancel-template-secondary">取消</button>
+            <button type="submit" class="builder-primary" id="submit-template">保存模板</button>
+          </div>
+        </form>
+
+        <div class="template-filters">
+          <input class="style-filter-input" id="template-search" placeholder="搜索模板、用途或结构">
+          <select class="style-filter-select" id="template-category">
+            <option value="all">全部场景</option>
+          </select>
+        </div>
+
+        <div class="template-count" id="template-count"></div>
+        <div class="template-grid" id="template-grid">
+          <!-- templates injected -->
+        </div>
+      </div>
+
       <!-- Compat tab -->
-      <div class="panel" id="tab-compat" style="display:none">
+      <div class="panel" id="tab-compat" role="tabpanel" aria-labelledby="right-tab-compat" style="display:none">
         <div class="panel-h">
           <div>
             <div class="ttl">兼容性检查</div>
             <div class="sub">复制前的体检报告，会随编辑实时更新。</div>
           </div>
+        </div>
+
+        <div class="publish-target">
+          <div class="publish-target-copy">
+            <label for="target-profile">发布目标</label>
+            <span id="target-description">选择目标编辑器后应用对应检查规则。</span>
+          </div>
+          <select id="target-profile" aria-label="发布目标"></select>
         </div>
 
         <div class="compat-summary">
@@ -487,7 +577,7 @@ function renderWeChatHtml(ast, theme) {
       </div>
 
       <!-- Export tab placeholder -->
-      <div class="panel" id="tab-export" style="display:none">
+      <div class="panel" id="tab-export" role="tabpanel" aria-labelledby="right-tab-export" style="display:none">
         <div class="panel-h">
           <div>
             <div class="ttl">导出</div>
@@ -495,9 +585,13 @@ function renderWeChatHtml(ast, theme) {
           </div>
         </div>
         <div style="display:flex;flex-direction:column;gap:8px">
+          <button class="issue" data-export-action="import-md" style="text-align:left;cursor:pointer">
+            <div class="sev" style="background:var(--info-soft);color:#3D5E92"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 3v8M5 6l3-3 3 3"/><path d="M3 13h10"/></svg></div>
+            <div class="body"><div class="title">导入 Markdown 文件</div><div class="msg">选择单篇 .md 或 .markdown 文件并创建为新文档。</div></div>
+          </button>
           <button class="issue" data-export-action="copy-rich" style="text-align:left;cursor:pointer">
             <div class="sev" style="background:var(--accent-soft);color:var(--accent)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="10" height="10" rx="1.5"/><path d="M6 6h4M6 9h4"/></svg></div>
-            <div class="body"><div class="title">复制富文本</div><div class="msg">写入剪贴板（text/html + text/plain），可直接粘贴到公众号。</div></div>
+            <div class="body"><div class="title">复制富文本</div><div class="msg">写入剪贴板（text/html + text/plain），可粘贴到公众号或其他富文本编辑器。</div></div>
           </button>
           <button class="issue" data-export-action="copy-html" style="text-align:left;cursor:pointer">
             <div class="sev" style="background:var(--info-soft);color:#3D5E92"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 4h8v8H4z"/><path d="M6 7l2 2 2-2"/></svg></div>
@@ -523,11 +617,22 @@ function renderWeChatHtml(ast, theme) {
             <div class="sev" style="background:var(--warn-soft);color:var(--warn)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 5H2V2"/><path d="M2.5 5A6 6 0 1 1 3 12"/><path d="M8 5v4l2 1"/></svg></div>
             <div class="body"><div class="title">恢复导入前文档库</div><div class="msg">撤销最近一次整库导入，恢复自动安全快照。</div></div>
           </button>
+          <button class="issue" data-export-action="browse-recovery" style="text-align:left;cursor:pointer" hidden>
+            <div class="sev" style="background:var(--warn-soft);color:var(--warn)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 4h10v9H3z"/><path d="M5 2.5h6V4M5.5 7.5h5M5.5 10h3"/></svg></div>
+            <div class="body"><div class="title">浏览本地历史备份</div><div class="msg">从 Electron 自动备份或安全快照中选择一个版本恢复。</div></div>
+          </button>
+          <div class="inline-builder recovery-browser" id="recovery-browser" hidden>
+            <div class="inline-builder-head"><div><b>本地历史备份</b><span>恢复前会先保存当前文档库的安全快照。</span></div><button type="button" class="builder-close" id="close-recovery" aria-label="关闭历史备份">×</button></div>
+            <label class="builder-field builder-field-wide">恢复点<select id="recovery-point-select"></select></label>
+            <div class="builder-actions"><button type="button" id="cancel-recovery">取消</button><button type="button" class="builder-primary" id="restore-recovery">恢复此版本</button></div>
+          </div>
         </div>
       </div>
 
     </div>
   </aside>
+
+  <button type="button" class="drawer-backdrop" id="drawer-backdrop" aria-label="关闭侧栏" hidden></button>
 
   <!-- ============ STATUS BAR ============ -->
   <footer class="status">
@@ -539,22 +644,38 @@ function renderWeChatHtml(ast, theme) {
     <span class="spacer"></span>
     <span class="stat-pill warn">兼容性 · 2 警告</span>
     <span class="stat-pill ok">剪贴板就绪</span>
-    <span class="gr" style="color:#8A877D">MD Style v0.1 · MVP</span>
+    <span class="gr" style="color:#8A877D">MD Style v0.2 · 本地优先</span>
   </footer>
 </div>
 
+<dialog class="confirm-dialog" id="confirm-dialog" aria-labelledby="confirm-title" aria-describedby="confirm-message">
+  <div class="confirm-body">
+    <div class="confirm-mark" aria-hidden="true">!</div>
+    <div class="confirm-copy">
+      <h2 id="confirm-title">确认操作</h2>
+      <p id="confirm-message"></p>
+    </div>
+  </div>
+  <div class="confirm-actions">
+    <button type="button" id="confirm-cancel">取消</button>
+    <button type="button" class="confirm-primary" id="confirm-accept">确认</button>
+  </div>
+</dialog>
+
 <!-- Toast -->
-<div class="toast" id="toast">
+<div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true">
   <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8l3 3 7-7"/></svg>
-  <span>已复制富文本到剪贴板，可粘贴到公众号编辑器</span>
+  <span>已复制富文本到剪贴板，可粘贴到目标编辑器</span>
 </div>
 
-<script src="assets/markdown-it.min.js"></script>
-<script src="assets/theme-catalog.js"></script>
-<script src="assets/markdown-engine.js"></script>
-<script src="assets/library-model.js"></script>
-<script src="assets/wechat-exporter.js"></script>
-<script src="assets/app.js"></script>
+<script src="assets/markdown-it.min.js?v=0.2.0-20260718"></script>
+<script src="assets/theme-catalog.js?v=0.2.0-20260718"></script>
+<script src="assets/document-templates.js?v=0.2.0-20260718"></script>
+<script src="assets/publishing-profiles.js?v=0.2.0-20260718"></script>
+<script src="assets/markdown-engine.js?v=0.2.0-20260718"></script>
+<script src="assets/library-model.js?v=0.2.0-20260718"></script>
+<script src="assets/wechat-exporter.js?v=0.2.0-20260718"></script>
+<script src="assets/app.js?v=0.2.0-20260718"></script>
 
 </body>
 </html>

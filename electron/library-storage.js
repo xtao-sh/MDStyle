@@ -14,9 +14,11 @@ function createLibraryStorage(userDataPath, options = {}) {
   let lastBackupAt = 0;
 
   function serialize(payload) {
+    const requestedSavedAt = new Date(payload?.savedAt || 0).getTime();
     const body = {
-      version: 1,
-      savedAt: new Date(now()).toISOString(),
+      version: 2,
+      savedAt: Number.isFinite(requestedSavedAt) && requestedSavedAt > 0 ? new Date(requestedSavedAt).toISOString() : new Date(now()).toISOString(),
+      revision: Number(payload?.revision || 0),
       state: payload?.state || payload,
     };
     const content = JSON.stringify(body, null, 2);
@@ -105,7 +107,66 @@ function createLibraryStorage(userDataPath, options = {}) {
     });
   }
 
-  return { load, save, snapshot, target };
+  async function readRecoveryFile(filename, id, kind, reason) {
+    try {
+      const payload = JSON.parse(await fs.readFile(filename, "utf8"));
+      const state = payload?.state || payload;
+      if (!Array.isArray(state?.docs)) return null;
+      const stats = await fs.stat(filename);
+      const parsedSavedAt = new Date(payload?.savedAt || stats.mtime).getTime();
+      return {
+        id,
+        kind,
+        reason,
+        savedAt:Number.isFinite(parsedSavedAt) ? new Date(parsedSavedAt).toISOString() : stats.mtime.toISOString(),
+        documentCount:state.docs.length,
+      };
+    } catch (_) {
+      return null;
+    }
+  }
+
+  async function listRecoveryPoints() {
+    await writeQueue.catch(() => undefined);
+    const points = [];
+    for (let index = 1; index <= BACKUP_LIMIT; index++) {
+      const point = await readRecoveryFile(backupPath(index), `backup:${index}`, "backup", `自动备份 ${index}`);
+      if (point) points.push(point);
+    }
+    const entries = await fs.readdir(snapshotDir, { withFileTypes:true }).catch(error => {
+      if (error.code === "ENOENT") return [];
+      throw error;
+    });
+    for (const entry of entries) {
+      if (!entry.isFile() || !entry.name.endsWith(".json")) continue;
+      const reason = entry.name.replace(/^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z-/, "").replace(/\.json$/, "");
+      const point = await readRecoveryFile(path.join(snapshotDir, entry.name), `snapshot:${entry.name}`, "snapshot", reason || "安全快照");
+      if (point) points.push(point);
+    }
+    return points.sort((a, b) => new Date(b.savedAt) - new Date(a.savedAt));
+  }
+
+  async function loadRecoveryPoint(id) {
+    await writeQueue.catch(() => undefined);
+    const value = String(id || "");
+    let filename = "";
+    const backupMatch = value.match(/^backup:([1-3])$/);
+    if (backupMatch) filename = backupPath(Number(backupMatch[1]));
+    if (value.startsWith("snapshot:")) {
+      const name = value.slice("snapshot:".length);
+      if (path.basename(name) !== name || !name.endsWith(".json")) throw new Error("无效的恢复点");
+      const entries = await fs.readdir(snapshotDir);
+      if (!entries.includes(name)) throw new Error("恢复点不存在");
+      filename = path.join(snapshotDir, name);
+    }
+    if (!filename) throw new Error("无效的恢复点");
+    const payload = JSON.parse(await fs.readFile(filename, "utf8"));
+    const state = payload?.state || payload;
+    if (!Array.isArray(state?.docs)) throw new Error("恢复点内容无效");
+    return payload;
+  }
+
+  return { load, save, snapshot, listRecoveryPoints, loadRecoveryPoint, target };
 }
 
 module.exports = { createLibraryStorage, MAX_LIBRARY_BYTES };

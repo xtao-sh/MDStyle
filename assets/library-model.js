@@ -14,6 +14,9 @@
     const tagColors = Array.isArray(options.tagColors) && options.tagColors.length ? [...options.tagColors] : [...DEFAULT_TAG_COLORS];
     const headingPresets = new Set(["", "left", "underline", "block", "center"]);
     const fontPresetIds = new Set(["", ...(options.fontPresetIds || [])]);
+    const fontPresetValues = new Set(Object.values(options.fontPresets || {}));
+    const targetProfileIds = new Set(options.targetProfileIds || ["general"]);
+    const legacyTargetId = targetProfileIds.has(options.legacyTargetId) ? options.legacyTargetId : [...targetProfileIds][0];
 
     function normalizeCssColor(value, fallback="#1A1A18"){
       const v = String(value || "").trim();
@@ -25,18 +28,50 @@
     function isRecord(value){
       return Boolean(value && typeof value === "object" && !Array.isArray(value));
     }
+    function normalizeId(value){
+      if (typeof value !== "string" && typeof value !== "number") return "";
+      return String(value).trim().slice(0, 160);
+    }
+    function normalizeTargetId(value, fallback=legacyTargetId){
+      if (targetProfileIds.has(value)) return value;
+      return targetProfileIds.has(fallback) ? fallback : legacyTargetId;
+    }
     function normalizeStyleRecord(style={}){
       const source = isRecord(style) ? style : {};
       const fallback = ["#2D2D2A", "#5C8A7D", "#F7F6F1", "#26262B"];
       const sourceSwatches = Array.isArray(source.swatches) ? source.swatches : [];
       const swatches = fallback.map((color, idx) => normalizeCssColor(sourceSwatches[idx], color));
-      const customVars = isRecord(source.customVars) ? Object.fromEntries(
-        Object.entries(source.customVars)
-          .filter(([key]) => /^--custom-[a-z0-9-]+$/i.test(key))
-          .map(([key, value], idx) => [key, normalizeCssColor(value, swatches[idx % swatches.length])])
-      ) : undefined;
+      const colorFallbacks = {
+        "--custom-primary":swatches[0], "--custom-accent":swatches[1], "--custom-soft":swatches[2],
+        "--custom-bg":"#FFFFFF", "--custom-text":swatches[0], "--custom-code-bg":swatches[3], "--custom-code":swatches[2],
+      };
+      const sizeRanges = {
+        "--custom-body":[12, 22], "--custom-h1":[18, 42], "--custom-h2":[16, 32], "--custom-h3":[14, 26],
+      };
+      const customVars = {};
+      if (isRecord(source.customVars)) Object.entries(source.customVars).forEach(([key, value]) => {
+        if (colorFallbacks[key]) {
+          customVars[key] = normalizeCssColor(value, colorFallbacks[key]);
+          return;
+        }
+        if (key === "--custom-font" && fontPresetValues.has(value)) {
+          customVars[key] = value;
+          return;
+        }
+        if (sizeRanges[key]) {
+          const match = String(value || "").match(/^(\d+(?:\.\d+)?)px$/);
+          const numeric = match ? Number(match[1]) : NaN;
+          if (Number.isFinite(numeric) && numeric >= sizeRanges[key][0] && numeric <= sizeRanges[key][1]) customVars[key] = `${numeric}px`;
+          return;
+        }
+        if (key === "--custom-line") {
+          const numeric = Number(value);
+          if (Number.isFinite(numeric) && numeric >= 1.2 && numeric <= 2.4) customVars[key] = String(numeric);
+        }
+      });
       const { customVars:_ignoredCustomVars, ...rest } = source;
-      return { ...rest, swatches, ...(customVars && Object.keys(customVars).length ? { customVars } : {}) };
+      const headingPreset = headingPresets.has(source.headingPreset) ? source.headingPreset : "";
+      return { ...rest, headingPreset, swatches, ...(Object.keys(customVars).length ? { customVars } : {}) };
     }
     function normalizeStyleOverrides(input={}){
       const heading = headingPresets.has(input.heading) ? input.heading : "";
@@ -48,15 +83,23 @@
       if (input.pageBg) out.pageBg = normalizeCssColor(input.pageBg, "#FFFFFF");
       if (input.strongBg) out.strongBg = normalizeCssColor(input.strongBg, "#E7EEEA");
       if (input.accent) out.accent = normalizeCssColor(input.accent, "#5C8A7D");
+      if (input.paragraphBg) out.paragraphBg = normalizeCssColor(input.paragraphBg, "#FFFFFF");
+      if (input.quoteBg) out.quoteBg = normalizeCssColor(input.quoteBg, "#F7F6F1");
+      if (input.codeBg) out.codeBg = normalizeCssColor(input.codeBg, "#26262B");
+      if (input.tableHeaderBg) out.tableHeaderBg = normalizeCssColor(input.tableHeaderBg, "#2F5D4F");
+      if (input.linkColor) out.linkColor = normalizeCssColor(input.linkColor, "#2F5D4F");
+      const paragraphSpacing = Number(input.paragraphSpacing);
+      if (Number.isFinite(paragraphSpacing) && paragraphSpacing >= 6 && paragraphSpacing <= 36) out.paragraphSpacing = paragraphSpacing;
       return out;
     }
     function uniqueRecords(records, fallbackRecords=[], normalize=(x) => x){
       const seen = new Set();
       const out = [];
       [...(Array.isArray(records) ? records : []), ...fallbackRecords].forEach((record) => {
-        if (!record?.id || seen.has(record.id)) return;
-        seen.add(record.id);
-        out.push(normalize(record, out.length));
+        const id = normalizeId(record?.id);
+        if (!id || seen.has(id)) return;
+        seen.add(id);
+        out.push(normalize({ ...record, id }, out.length));
       });
       return out;
     }
@@ -86,7 +129,8 @@
         { id:uid(), title:"读《卓有成效的管理者》笔记", manualTitle:false, markdown:"# 读《卓有成效的管理者》笔记\n\n德鲁克对**有效性**的定义非常工程化：记录时间、归集时间、整合时间。\n\n> 管理者的成果来自少数关键动作。\n", directoryId:"books", tagIds:["reading", "longform"], styleId:"academic", createdAt:nowIso(), updatedAt:new Date(Date.now() - 3 * 86400000).toISOString() },
         { id:uid(), title:"SvelteKit 实战：表单与 Action", manualTitle:false, markdown:"# SvelteKit 实战：表单与 Action\n\n表单是 Web 应用最古老的东西，也是 SvelteKit 处理得很优雅的部分。\n\n```ts\nexport const actions = {\n  default: async ({ request }) => {\n    return { ok: true };\n  }\n};\n```\n", directoryId:"tech-dir", tagIds:["tutorial"], styleId:"tech", createdAt:nowIso(), updatedAt:new Date(Date.now() - 7 * 86400000).toISOString() },
       ];
-      return { dirs, tags, docs, activeDocId:docs[0].id, activeDirId:"all", activeTagIds:[], search:"", sort:"updated", styles:BUILTIN_STYLES.map(s => ({ ...s, builtin:true, favorite:!!s.fav })) };
+      docs.forEach(doc => { doc.targetId = legacyTargetId; });
+      return { dirs, tags, docs, customTemplates:[], activeDocId:docs[0].id, activeDirId:"all", activeTagIds:[], search:"", sort:"updated", styles:BUILTIN_STYLES.map(s => ({ ...s, builtin:true, favorite:!!s.fav })) };
     }
     
     function normalizeState(saved){
@@ -94,8 +138,8 @@
       if (!saved || !Array.isArray(saved.docs)) return base;
       const builtinStyleIds = new Set(BUILTIN_STYLES.map(s => s.id));
       const savedStyles = Array.isArray(saved.styles) ? saved.styles.filter(isRecord) : [];
-      const custom = uniqueRecords(savedStyles.filter(s => !s.builtin && !builtinStyleIds.has(s.id)), [], normalizeStyleRecord);
-      const favoriteMap = new Map(savedStyles.map(s => [s.id, !!s.favorite]));
+      const custom = uniqueRecords(savedStyles.filter(s => !s.builtin && !builtinStyleIds.has(normalizeId(s.id))), [], normalizeStyleRecord);
+      const favoriteMap = new Map(savedStyles.map(s => [normalizeId(s.id), !!s.favorite]).filter(([id]) => id));
       Object.entries(LEGACY_STYLE_REPLACEMENTS).forEach(([legacyId, nextId]) => {
         if (favoriteMap.has(legacyId) && !favoriteMap.has(nextId)) favoriteMap.set(nextId, favoriteMap.get(legacyId));
       });
@@ -117,34 +161,57 @@
         ...custom,
       ];
       const styleIds = new Set(styles.map(s => s.id));
+      const customTemplates = uniqueRecords(Array.isArray(saved.customTemplates) ? saved.customTemplates.filter(isRecord) : [], [], (template) => {
+        const markdown = String(template.markdown || "");
+        const headings = [...markdown.matchAll(/^#{1,3}\s+(.+)$/gm)].map(match => match[1].trim()).filter(Boolean).slice(0, 6);
+        return {
+          ...template,
+          name:String(template.name || firstHeading(markdown) || "未命名模板").trim().slice(0, 50) || "未命名模板",
+          cat:String(template.cat || "我的模板").trim().slice(0, 24) || "我的模板",
+          description:String(template.description || "个人保存的文档结构").trim().slice(0, 120) || "个人保存的文档结构",
+          tags:Array.isArray(template.tags) ? [...new Set(template.tags.map(tag => String(tag).trim().slice(0, 24)).filter(Boolean))].slice(0, 12) : [],
+          outline:Array.isArray(template.outline) && template.outline.length ? template.outline.map(item => String(item).trim().slice(0, 40)).filter(Boolean).slice(0, 6) : headings,
+          markdown,
+          styleId:styleIds.has(normalizeId(template.styleId)) ? normalizeId(template.styleId) : "default",
+          targetId:normalizeTargetId(template.targetId, "general"),
+          custom:true,
+          createdAt:validIso(template.createdAt),
+        };
+      });
       const seenDocIds = new Set();
       const savedDocs = saved.docs.filter(isRecord);
       const docs = (savedDocs.length ? savedDocs : base.docs).map((doc) => {
         const markdown = String(doc.markdown || "");
         const createdAt = validIso(doc.createdAt);
-        let docId = doc.id || uid();
+        const sourceDocId = normalizeId(doc.id);
+        let docId = sourceDocId || normalizeId(uid());
         let suffix = 1;
-        while (seenDocIds.has(docId)) docId = `${doc.id || "doc"}-${suffix++}-${uid()}`;
+        while (seenDocIds.has(docId)) docId = `${sourceDocId || "doc"}-${suffix++}-${normalizeId(uid())}`;
         seenDocIds.add(docId);
-        const migratedStyleId = LEGACY_STYLE_REPLACEMENTS[doc.styleId];
+        const sourceStyleId = normalizeId(doc.styleId);
+        const sourceDirectoryId = normalizeId(doc.directoryId);
+        const migratedStyleId = LEGACY_STYLE_REPLACEMENTS[sourceStyleId];
         return {
           ...doc,
           id: docId,
           title: doc.manualTitle ? (String(doc.title || "").trim().slice(0, 80) || firstHeading(markdown)) : firstHeading(markdown),
           manualTitle: !!doc.manualTitle,
-          tagIds: Array.isArray(doc.tagIds) ? [...new Set(doc.tagIds.filter(id => tagIds.has(id)))] : [],
+          tagIds: Array.isArray(doc.tagIds) ? [...new Set(doc.tagIds.map(normalizeId).filter(id => tagIds.has(id)))] : [],
           markdown,
-          directoryId: dirIds.has(doc.directoryId) && doc.directoryId !== "all" ? doc.directoryId : "uncategorized",
-          styleId: styleIds.has(doc.styleId) ? doc.styleId : (styleIds.has(migratedStyleId) ? migratedStyleId : "default"),
+          directoryId: dirIds.has(sourceDirectoryId) && sourceDirectoryId !== "all" ? sourceDirectoryId : "uncategorized",
+          styleId: styleIds.has(sourceStyleId) ? sourceStyleId : (styleIds.has(migratedStyleId) ? migratedStyleId : "default"),
+          targetId: normalizeTargetId(doc.targetId),
           styleOverrides: normalizeStyleOverrides(doc.styleOverrides),
           createdAt,
           updatedAt: validIso(doc.updatedAt, createdAt),
         };
       });
       const docIds = new Set(docs.map(d => d.id));
-      const activeDocId = docIds.has(saved.activeDocId) ? saved.activeDocId : docs[0]?.id || base.activeDocId;
-      const activeDirId = dirIds.has(saved.activeDirId) ? saved.activeDirId : "all";
-      const activeTagIds = Array.isArray(saved.activeTagIds) ? [...new Set(saved.activeTagIds.filter(id => tagIds.has(id)))] : [];
+      const savedActiveDocId = normalizeId(saved.activeDocId);
+      const savedActiveDirId = normalizeId(saved.activeDirId);
+      const activeDocId = docIds.has(savedActiveDocId) ? savedActiveDocId : docs[0]?.id || base.activeDocId;
+      const activeDirId = dirIds.has(savedActiveDirId) ? savedActiveDirId : "all";
+      const activeTagIds = Array.isArray(saved.activeTagIds) ? [...new Set(saved.activeTagIds.map(normalizeId).filter(id => tagIds.has(id)))] : [];
       const allowedSorts = new Set(["updated", "created", "title", "chars"]);
       return {
         ...base,
@@ -152,6 +219,7 @@
         dirs: normalizedDirs,
         tags,
         docs,
+        customTemplates,
         styles,
         activeDocId,
         activeDirId,
@@ -164,6 +232,7 @@
     return Object.freeze({
       tagColors: Object.freeze([...tagColors]),
       normalizeCssColor,
+      normalizeTargetId,
       normalizeStyleRecord,
       normalizeStyleOverrides,
       seedState,

@@ -95,6 +95,16 @@ ipcMain.handle("library:snapshot", async (event, payload) => {
   return true;
 });
 
+ipcMain.handle("library:list-recovery", async (event) => {
+  requireTrustedIpc(event);
+  return getLibraryStorage().listRecoveryPoints();
+});
+
+ipcMain.handle("library:load-recovery", async (event, id) => {
+  requireTrustedIpc(event);
+  return getLibraryStorage().loadRecoveryPoint(id);
+});
+
 function createMenu() {
   const template = [
     {
